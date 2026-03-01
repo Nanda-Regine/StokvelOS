@@ -1,0 +1,13 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "next build",
+  "devCommand": "next dev",
+  "installCommand": "npm install",
+  "regions": ["jnb1"],
+  "functions": {
+    "app/api/**": {
+      "maxDuration": 30
+    }
+  },
+  "crons": []
+}
