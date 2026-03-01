@@ -1,13 +1,13 @@
-// app/members/page.tsx
+// app/meetings/page.tsx
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import type { Metadata } from 'next'
-import { MembersClient } from './MembersClient'
-import type { StokvelMember, Stokvel } from '@/types'
+import { MeetingsClient } from './MeetingsClient'
+import type { Meeting, StokvelMember, Stokvel } from '@/types'
 
-export const metadata: Metadata = { title: 'Members' }
+export const metadata: Metadata = { title: 'Meetings' }
 
-export default async function MembersPage() {
+export default async function MeetingsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
@@ -20,45 +20,24 @@ export default async function MembersPage() {
 
   if (!stokvel) redirect('/setup')
 
+  const { data: meetings } = await supabase
+    .from('meetings')
+    .select('*')
+    .eq('stokvel_id', stokvel.id)
+    .order('date', { ascending: false })
+
   const { data: members } = await supabase
     .from('stokvel_members')
     .select('*')
     .eq('stokvel_id', stokvel.id)
-    .order('payout_position', { ascending: true, nullsFirst: false })
-
-  // Current month paid member IDs
-  const now = new Date()
-  const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
-
-  const { data: currentMonthContribs } = await supabase
-    .from('contributions')
-    .select('member_id')
-    .eq('stokvel_id', stokvel.id)
-    .eq('status', 'confirmed')
-    .gte('date', monthStart)
-
-  const paidIds = new Set((currentMonthContribs || []).map((c: { member_id: string }) => c.member_id))
-
-  // Year totals per member
-  const yearStart = `${now.getFullYear()}-01-01`
-  const { data: yearContribsRaw } = await supabase
-    .from('contributions')
-    .select('member_id, amount')
-    .eq('stokvel_id', stokvel.id)
-    .eq('status', 'confirmed')
-    .gte('date', yearStart)
-
-  const yearContribs: Record<string, number> = {}
-  ;(yearContribsRaw || []).forEach((c: { member_id: string; amount: number }) => {
-    yearContribs[c.member_id] = (yearContribs[c.member_id] || 0) + Number(c.amount)
-  })
+    .eq('status', 'active')
+    .order('name')
 
   return (
-    <MembersClient
+    <MeetingsClient
       stokvel={stokvel as Stokvel}
-      initialMembers={(members || []) as StokvelMember[]}
-      initialPaidIds={Array.from(paidIds) as string[]}
-      yearContribs={yearContribs}
+      initialMeetings={(meetings || []) as Meeting[]}
+      members={(members || []) as StokvelMember[]}
     />
   )
 }
