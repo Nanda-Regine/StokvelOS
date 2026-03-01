@@ -1,88 +1,119 @@
-# StokvelOS 🌿
+# StokvelOS 🌿 — Next.js SaaS Edition
 
-> *Your Stokvel. Organised. Intelligent. Together.*
+> *South Africa's first AI-powered stokvel management platform.*
 
-StokvelOS is South Africa's first AI-powered stokvel management platform, built for the R50B+ community savings market. An estimated 11 million South Africans participate in stokvels — managing billions annually with no proper software. StokvelOS changes that.
+## 🚀 Tech Stack
 
----
-
-## The Problem
-
-South African stokvels — General, Grocery, Burial, Christmas, Investment — run on spreadsheets, WhatsApp groups, and handwritten ledgers. Money is lost. Disputes happen. Trust breaks down.
-
-## The Solution
-
-StokvelOS gives stokvel administrators and members:
-- A clean, simple dashboard to track contributions and members
-- AI-generated meeting minutes, health reports, and WhatsApp reminders
-- A calendar view of all contributions
-- Annual and monthly reports with one-click export
-- Works offline, installs like an app — no login required for MVP
+- **Framework**: Next.js 14 (App Router)
+- **Database & Auth**: Supabase (PostgreSQL + Row Level Security)
+- **AI**: OpenAI GPT-4o-mini
+- **Styling**: Tailwind CSS + custom design system
+- **Analytics**: Vercel Analytics + Speed Insights
+- **Deployment**: Vercel
 
 ---
 
-## AI Features (GPT-4o-mini)
+## 📦 Project Batches
 
-### 1. AI Meeting Minutes Writer
-Type rough meeting notes in any format. The AI converts them into formal, professional meeting minutes. Copy to share via WhatsApp or email.
+This project is built in 5 batches:
 
-### 2. Monthly Stokvel Health Report
-Auto-generated on the dashboard. Covers contribution compliance rate, patterns, and one recommendation for the administrator. Cached monthly to save API calls.
-
-### 3. WhatsApp Reminder Generator
-For each member with outstanding payment, the AI writes a personalised, warm WhatsApp message. One click to send via the WhatsApp app.
-
----
-
-## Pages
-
-| Page | File |
-|------|------|
-| Setup (first launch) | `setup.html` |
-| Dashboard | `index.html` |
-| Members | `members.html` |
-| Contributions | `contributions.html` |
-| Meetings | `meetings.html` |
-| Reports | `reports.html` |
+| Batch | Contents | Status |
+|-------|----------|--------|
+| **Batch 1** | Foundation: config, types, auth, layout, design system | ✅ |
+| **Batch 2** | Dashboard + Setup pages | 🔜 |
+| **Batch 3** | Members + Contributions pages | 🔜 |
+| **Batch 4** | Meetings + Reports pages | 🔜 |
+| **Batch 5** | AI API routes + Settings + Final polish | 🔜 |
 
 ---
 
-## Setup & Deployment
+## 🛠 Setup Instructions
 
-1. Set your OpenAI API key in `shared.js`:
-   ```js
-   const OPENAI_KEY = 'your-key-here';
-   ```
+### 1. Clone and install
 
-2. Deploy to Vercel, Netlify, or GitHub Pages — all static files, no server needed.
+```bash
+git clone https://github.com/yourusername/stokvel-os.git
+cd stokvel-os
+npm install
+```
 
-3. Place `sw.js` at the root of your domain for PWA functionality.
+### 2. Create Supabase project
 
-4. First-time users are automatically redirected to `setup.html`.
+1. Go to [supabase.com](https://supabase.com) and create a new project
+2. Go to **SQL Editor** and run the contents of `lib/supabase/schema.sql`
+3. Copy your project URL and anon key
+
+### 3. Configure environment
+
+```bash
+cp .env.local.example .env.local
+```
+
+Edit `.env.local`:
+```
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+OPENAI_API_KEY=your_openai_key
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+### 4. Run development server
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000)
 
 ---
 
-## Stack
+## 🌐 Deploy to Vercel
 
-- Vanilla HTML / CSS / JavaScript — zero dependencies
-- `localStorage` for all data persistence (no backend for MVP)
-- OpenAI `gpt-4o-mini` for AI features
-- PWA manifest + service worker for offline capability
+```bash
+npm i -g vercel
+vercel
+```
+
+Add your environment variables in the Vercel dashboard.
 
 ---
 
-## Pricing Model
+## 📁 Project Structure
 
-| Plan | Price | Features |
-|------|-------|---------|
-| Basic | R199/month | Core management, up to 20 members |
-| Premium | R499/month | AI features, unlimited members, export |
-| Beta | Free | Full access during beta period |
+```
+stokvel-os/
+├── app/
+│   ├── auth/           # Login, signup, reset password
+│   ├── dashboard/      # Main dashboard
+│   ├── members/        # Member management
+│   ├── contributions/  # Payment tracking
+│   ├── meetings/       # Meeting minutes
+│   ├── reports/        # Analytics & exports
+│   ├── settings/       # Stokvel configuration
+│   ├── setup/          # First-time setup wizard
+│   └── api/            # AI and data API routes
+├── components/
+│   ├── ui/             # Reusable components
+│   ├── dashboard/      # Dashboard-specific
+│   └── shared/         # Layout components
+├── lib/
+│   ├── supabase/       # DB clients + schema
+│   └── utils.ts        # Helpers
+└── types/              # TypeScript types
+```
+
+---
+
+## 🤖 AI Features
+
+- **Health Report**: Monthly stokvel compliance analysis
+- **Meeting Minutes**: Convert rough notes to professional minutes
+- **WhatsApp Reminders**: Personalised messages for each member
+- **Smart Insights**: Trend detection and recommendations
 
 ---
 
 Built by **Nanda Regine** — Creative Technologist & AI Engineer  
 East London, South Africa  
-[creativelynanda.co.za](https://creativelynanda.co.za) | hello@mirembemuse.co.za | [wa.me/27842916742](https://wa.me/27842916742)
-
-*StokvelOS — Basic R199/month · Premium R499/month · Free during beta*
+[creativelynanda.co.za](https://creativelynanda.co.za) | hello@mirembemuse.co.za
