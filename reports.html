@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StokvelOS — Reports</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="shared.css" />
+  <style>
+    .report-section {
+      margin-bottom: 28px;
+    }
+    .report-section-title {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .report-section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+    .progress-bar {
+      height: 6px;
+      background: var(--cream-dark);
+      border-radius: 100px;
+      overflow: hidden;
+      margin-top: 6px;
+    }
+    .progress-fill {
+      height: 100%;
+      background: var(--green-mid);
+      border-radius: 100px;
+      transition: width 0.6s ease;
+    }
+    .progress-fill.low { background: #dc2626; }
+    .progress-fill.mid { background: var(--gold); }
+    .member-report-row {
+      display: grid;
+      grid-template-columns: 180px 1fr 100px 80px;
+      gap: 16px;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .member-report-row:last-child { border-bottom: none; }
+    @media print {
+      .sidebar, .page-header, .print-hide { display: none !important; }
+      .main-content { margin-left: 0 !important; }
+      body { background: white; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-layout">
+  <nav class="sidebar" id="sidebar"></nav>
+
+  <main class="main-content">
+    <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;">
+      <h1 class="page-title">Reports</h1>
+      <div style="display:flex;gap:8px;" class="print-hide">
+        <button class="btn btn-outline" onclick="window.print()">🖨️ Print</button>
+        <button class="btn btn-primary" onclick="exportTextReport()">📄 Export Summary</button>
+      </div>
+    </div>
+
+    <div class="page-body">
+
+      <!-- OVERVIEW STATS -->
+      <div class="stat-grid" id="overview-stats"></div>
+
+      <!-- ANNUAL CONTRIBUTION REPORT -->
+      <div class="report-section">
+        <div class="report-section-title">Annual Contribution Summary</div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Member</th>
+                  <th>Jan</th><th>Feb</th><th>Mar</th><th>Apr</th>
+                  <th>May</th><th>Jun</th><th>Jul</th><th>Aug</th>
+                  <th>Sep</th><th>Oct</th><th>Nov</th><th>Dec</th>
+                  <th>Total Paid</th>
+                  <th>Target</th>
+                  <th>%</th>
+                </tr>
+              </thead>
+              <tbody id="annual-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- MEMBER COMPLIANCE REPORT -->
+      <div class="report-section">
+        <div class="report-section-title">Member Compliance Rate</div>
+        <div class="card">
+          <div class="card-body" id="compliance-body"></div>
+        </div>
+      </div>
+
+      <!-- OUTSTANDING PAYMENTS -->
+      <div class="report-section">
+        <div class="report-section-title">Outstanding Payments — This Month</div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Member</th>
+                  <th>Amount Due</th>
+                  <th>Status</th>
+                  <th>WhatsApp</th>
+                </tr>
+              </thead>
+              <tbody id="outstanding-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAYOUT HISTORY -->
+      <div class="report-section">
+        <div class="report-section-title">Payout Queue</div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Position</th>
+                  <th>Member</th>
+                  <th>Phone</th>
+                  <th>Monthly Contribution</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="payout-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script src="shared.js"></script>
+<script>
+  requireSetup();
+  document.getElementById('sidebar').innerHTML = renderNav();
+  highlightNav();
+
+  const cfg = Config.get();
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  function render() {
+    const members = Members.all().filter(m => m.status === 'active');
+    const allContribs = Contributions.all();
+    const year = new Date().getFullYear();
+
+    // Overview stats
+    const totalPot = Contributions.potTotal();
+    const totalExpected = members.reduce((s, m) => s + (m.monthlyAmount || cfg.monthlyAmount || 0), 0) * 12;
+    const thisMonthPaid = Contributions.currentMonth().filter(c => c.status === 'confirmed').length;
+
+    document.getElementById('overview-stats').innerHTML = `
+      <div class="stat-card"><div class="stat-label">Total Pot (All Time)</div><div class="stat-value">${fmt.currency(totalPot)}</div><div class="stat-sub">Confirmed contributions</div></div>
+      <div class="stat-card"><div class="stat-label">Annual Target</div><div class="stat-value">${fmt.currency(totalExpected)}</div><div class="stat-sub">If all members pay monthly</div></div>
+      <div class="stat-card"><div class="stat-label">This Month</div><div class="stat-value">${thisMonthPaid} / ${members.length}</div><div class="stat-sub">members paid</div></div>
+      <div class="stat-card"><div class="stat-label">Total Members</div><div class="stat-value">${members.length}</div><div class="stat-sub">active in ${cfg.name}</div></div>
+    `;
+
+    // Annual table
+    const annualTbody = document.getElementById('annual-tbody');
+    if (!members.length) {
+      annualTbody.innerHTML = `<tr><td colspan="16"><div class="empty-state" style="padding:30px 0"><div class="empty-sub">No members yet</div></div></td></tr>`;
+    } else {
+      annualTbody.innerHTML = members.map(m => {
+        const monthlyAmt = m.monthlyAmount || cfg.monthlyAmount || 0;
+        const monthTotals = MONTHS.map((_, idx) => {
+          const paid = allContribs.filter(c =>
+            c.memberId === m.id &&
+            c.status === 'confirmed' &&
+            new Date(c.date).getFullYear() === year &&
+            new Date(c.date).getMonth() === idx
+          ).reduce((s, c) => s + Number(c.amount), 0);
+          return paid;
+        });
+        const totalPaid = monthTotals.reduce((s, v) => s + v, 0);
+        const target = monthlyAmt * 12;
+        const pct = target > 0 ? Math.min(100, Math.round((totalPaid / target) * 100)) : 0;
+
+        return `<tr>
+          <td style="font-weight:500;white-space:nowrap;">${m.name}</td>
+          ${monthTotals.map(v => `<td style="font-family:var(--font-mono);font-size:0.72rem;text-align:center;${v > 0 ? 'color:var(--green-mid)' : 'color:var(--text-muted)'}">${v > 0 ? 'R' + v.toLocaleString() : '—'}</td>`).join('')}
+          <td style="font-family:var(--font-mono);font-weight:500;">${fmt.currency(totalPaid)}</td>
+          <td style="font-family:var(--font-mono);color:var(--text-muted);">${fmt.currency(target)}</td>
+          <td><span class="badge badge-${pct >= 100 ? 'paid' : pct >= 50 ? 'outstanding' : 'late'}">${pct}%</span></td>
+        </tr>`;
+      }).join('');
+    }
+
+    // Compliance
+    const complianceBody = document.getElementById('compliance-body');
+    complianceBody.innerHTML = members.map(m => {
+      const monthlyAmt = m.monthlyAmount || cfg.monthlyAmount || 0;
+      const yearContribs = allContribs.filter(c => c.memberId === m.id && c.status === 'confirmed' && new Date(c.date).getFullYear() === year);
+      const monthsPaid = new Set(yearContribs.map(c => new Date(c.date).getMonth())).size;
+      const currentMonthNum = new Date().getMonth() + 1;
+      const pct = currentMonthNum > 0 ? Math.round((monthsPaid / currentMonthNum) * 100) : 0;
+
+      return `<div class="member-report-row">
+        <span style="font-weight:500;font-size:0.9rem;">${m.name}</span>
+        <div>
+          <div style="font-family:var(--font-mono);font-size:0.7rem;color:var(--text-muted);margin-bottom:4px;">${monthsPaid} of ${currentMonthNum} months paid</div>
+          <div class="progress-bar">
+            <div class="progress-fill ${pct < 50 ? 'low' : pct < 80 ? 'mid' : ''}" style="width:${pct}%"></div>
+          </div>
+        </div>
+        <span style="font-family:var(--font-mono);font-size:0.78rem;">${fmt.currency(yearContribs.reduce((s, c) => s + Number(c.amount), 0))}</span>
+        <span class="badge badge-${pct >= 100 ? 'paid' : pct >= 50 ? 'outstanding' : 'late'}">${pct}%</span>
+      </div>`;
+    }).join('') || '<div class="empty-state" style="padding:20px 0"><div class="empty-sub">No members to report on</div></div>';
+
+    // Outstanding
+    const outstandingTbody = document.getElementById('outstanding-tbody');
+    const outstanding = members.filter(m => {
+      const s = memberPaymentStatus(m.id);
+      return s === 'outstanding' || s === 'late';
+    });
+
+    outstandingTbody.innerHTML = outstanding.length
+      ? outstanding.map(m => {
+          const status = memberPaymentStatus(m.id);
+          const amount = m.monthlyAmount || cfg.monthlyAmount || 0;
+          const phone = (m.phone || '').replace(/\D/g, '').replace(/^0/, '27');
+          const waMsg = encodeURIComponent(`Hi ${m.name.split(' ')[0]}, just a reminder that your R${amount} contribution to ${cfg.name} is due this month. Please pay when you can. Siyabonga! 🙏`);
+          return `<tr>
+            <td style="font-weight:500;">${m.name}</td>
+            <td style="font-family:var(--font-mono);">${fmt.currency(amount)}</td>
+            <td><span class="badge badge-${status}">${status}</span></td>
+            <td>${phone ? `<a href="https://wa.me/${phone}?text=${waMsg}" target="_blank" class="btn btn-gold btn-sm">📲 Remind</a>` : '—'}</td>
+          </tr>`;
+        }).join('')
+      : `<tr><td colspan="4"><div class="empty-state" style="padding:20px 0"><div class="empty-icon">✅</div><div class="empty-sub">All members paid this month</div></div></td></tr>`;
+
+    // Payout queue
+    const payoutTbody = document.getElementById('payout-tbody');
+    const sorted = [...members].sort((a, b) => (a.payoutPosition || 99) - (b.payoutPosition || 99));
+    payoutTbody.innerHTML = sorted.length
+      ? sorted.map((m, i) => `<tr>
+          <td style="font-family:var(--font-mono);text-align:center;">${m.payoutPosition || i + 1}</td>
+          <td style="font-weight:500;">${m.name}${i === 0 ? ' <span class="badge badge-paid" style="margin-left:6px;">Next</span>' : ''}</td>
+          <td style="font-family:var(--font-mono);font-size:0.78rem;">${m.phone || '—'}</td>
+          <td style="font-family:var(--font-mono);">${fmt.currency(m.monthlyAmount || cfg.monthlyAmount || 0)}</td>
+          <td><span class="badge badge-${m.status}">${m.status}</span></td>
+        </tr>`).join('')
+      : `<tr><td colspan="5"><div class="empty-state" style="padding:20px 0"><div class="empty-sub">No payout queue set</div></div></td></tr>`;
+  }
+
+  function exportTextReport() {
+    const members = Members.all().filter(m => m.status === 'active');
+    const year = new Date().getFullYear();
+    const totalPot = Contributions.potTotal();
+    const outstanding = members.filter(m => {
+      const s = memberPaymentStatus(m.id);
+      return s === 'outstanding' || s === 'late';
+    });
+
+    const report = `${cfg.name || 'STOKVEL'} — ANNUAL REPORT ${year}
+Generated: ${new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}
+${cfg.type || 'General'} Stokvel | ${cfg.province || ''}
+Administrator: ${cfg.adminName || 'N/A'}
+
+═══════════════════════════════════════
+
+SUMMARY
+• Active Members: ${members.length}
+• Total Pot (Confirmed): ${fmt.currency(totalPot)}
+• Monthly Contribution: ${fmt.currency(cfg.monthlyAmount || 0)} per member
+• Outstanding This Month: ${outstanding.length} member(s)
+• Payout Frequency: ${cfg.payoutFrequency || 'Monthly'}
+
+═══════════════════════════════════════
+
+ANNUAL CONTRIBUTIONS
+${members.map(m => {
+  const paid = Contributions.all().filter(c =>
+    c.memberId === m.id && c.status === 'confirmed' && new Date(c.date).getFullYear() === year
+  ).reduce((s, c) => s + Number(c.amount), 0);
+  const target = (m.monthlyAmount || cfg.monthlyAmount || 0) * 12;
+  const pct = target > 0 ? Math.round((paid / target) * 100) : 0;
+  return `  ${m.name.padEnd(25)} ${fmt.currency(paid).padStart(12)} / ${fmt.currency(target).padStart(12)} (${pct}%)`;
+}).join('\n')}
+
+═══════════════════════════════════════
+
+OUTSTANDING THIS MONTH
+${outstanding.length
+  ? outstanding.map(m => `  • ${m.name} — ${fmt.currency(m.monthlyAmount || cfg.monthlyAmount || 0)} due`).join('\n')
+  : '  All members have paid this month. ✓'}
+
+═══════════════════════════════════════
+
+Built by Nanda Regine | mirembemuse.co.za
+StokvelOS — Basic R199/month · Premium R499/month · Free during beta
+`;
+
+    const blob = new Blob([report], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${(cfg.name || 'stokvel').replace(/\s+/g, '_')}_report_${year}.txt`;
+    a.click();
+    toast('Report exported!');
+  }
+
+  render();
+</script>
+</body>
+</html>

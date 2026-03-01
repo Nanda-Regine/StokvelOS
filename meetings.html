@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StokvelOS — Meetings</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="shared.css" />
+  <style>
+    .meeting-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: white;
+      margin-bottom: 12px;
+      overflow: hidden;
+      transition: box-shadow 0.2s;
+    }
+    .meeting-card:hover { box-shadow: var(--shadow); }
+    .meeting-card-header {
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+    }
+    .meeting-card-body {
+      display: none;
+      padding: 0 20px 20px;
+      border-top: 1px solid var(--border);
+    }
+    .meeting-card-body.open { display: block; }
+    .meeting-date {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+    .meeting-title-text {
+      font-family: var(--font-display);
+      font-size: 1rem;
+      color: var(--green-deep);
+      margin-bottom: 2px;
+    }
+    .minutes-output {
+      background: var(--cream);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      font-size: 0.9rem;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      font-family: var(--font-body);
+      color: var(--text-mid);
+      margin-top: 12px;
+    }
+    .attendance-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .attendance-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.875rem;
+    }
+    .attendance-item input[type="checkbox"] {
+      accent-color: var(--green-mid);
+      width: 16px; height: 16px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-layout">
+  <nav class="sidebar" id="sidebar"></nav>
+
+  <main class="main-content">
+    <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;">
+      <h1 class="page-title">Meetings</h1>
+      <button class="btn btn-primary" onclick="openNewMeeting()">+ Log Meeting</button>
+    </div>
+
+    <div class="page-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+
+        <!-- PAST MEETINGS LIST -->
+        <div>
+          <div style="font-family:var(--font-mono);font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-muted);margin-bottom:14px;">Meeting History</div>
+          <div id="meetings-list">
+            <div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">No meetings logged</div><div class="empty-sub">Click "Log Meeting" to start.</div></div>
+          </div>
+        </div>
+
+        <!-- AI MINUTES WRITER -->
+        <div>
+          <div class="card" id="minutes-panel" style="display:none;">
+            <div class="card-header">
+              <span class="card-title">AI Minutes Writer ✨</span>
+            </div>
+            <div class="card-body">
+              <p style="font-family:var(--font-mono);font-size:0.72rem;color:var(--text-muted);margin-bottom:14px;">Type rough notes below — bullet points, shorthand, any format. The AI will generate formal minutes.</p>
+              <div class="form-group">
+                <label class="form-label">Raw Meeting Notes</label>
+                <textarea class="form-textarea" id="raw-notes" rows="8" placeholder="e.g.&#10;- date 15 march&#10;- zanele, thabo, mrs dlamini present&#10;- discussed feb payments - all paid except john&#10;- decided to increase contribution to R600 from april&#10;- next mtg: 15 april at zanele's place&#10;- john to pay double next month"></textarea>
+              </div>
+              <button class="btn btn-gold" onclick="generateMinutes()">✨ Generate Formal Minutes</button>
+
+              <div id="minutes-result" style="display:none;margin-top:20px;">
+                <div class="minutes-output" id="minutes-text"></div>
+                <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">
+                  <button class="btn btn-outline btn-sm" onclick="copyMinutes()">📋 Copy Minutes</button>
+                  <button class="btn btn-outline btn-sm" onclick="saveMinutes()">💾 Save to Meeting</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- AGENDA GENERATOR -->
+          <div class="card" style="margin-top:16px;">
+            <div class="card-header">
+              <span class="card-title">Generate Agenda</span>
+            </div>
+            <div class="card-body">
+              <p style="font-family:var(--font-mono);font-size:0.72rem;color:var(--text-muted);margin-bottom:16px;">Create a standard meeting agenda based on your stokvel's current state.</p>
+              <button class="btn btn-primary" onclick="generateAgenda()">📄 Generate Agenda</button>
+              <div id="agenda-output" style="display:none;margin-top:16px;">
+                <div class="minutes-output" id="agenda-text"></div>
+                <button class="btn btn-outline btn-sm" style="margin-top:10px;" onclick="copyAgenda()">📋 Copy Agenda</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- NEW MEETING MODAL -->
+<div class="modal-overlay" id="meeting-modal" style="display:none;">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-header">
+      <span class="modal-title">Log Meeting</span>
+      <button class="btn btn-ghost" onclick="closeMeetingModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Meeting Date *</label>
+          <input type="date" class="form-input" id="mt-date" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Venue / Location</label>
+          <input type="text" class="form-input" id="mt-venue" placeholder="e.g. Zanele's home" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Attendance</label>
+        <div class="attendance-grid" id="attendance-grid"></div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Agenda / Discussion Points</label>
+        <textarea class="form-textarea" id="mt-agenda" placeholder="What was discussed…" rows="3"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Decisions Made</label>
+        <textarea class="form-textarea" id="mt-decisions" placeholder="Any decisions agreed upon…" rows="3"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Action Items</label>
+        <textarea class="form-textarea" id="mt-actions" placeholder="Who does what by when…" rows="2"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Next Meeting Date</label>
+        <input type="date" class="form-input" id="mt-next" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeMeetingModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveMeeting()">Save Meeting</button>
+    </div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script>
+  requireSetup();
+  document.getElementById('sidebar').innerHTML = renderNav();
+  highlightNav();
+
+  const cfg = Config.get();
+  let currentMeetingId = null;
+
+  function renderMeetings() {
+    const meetings = [...Meetings.all()].sort((a, b) => new Date(b.date) - new Date(a.date));
+    const list = document.getElementById('meetings-list');
+
+    if (!meetings.length) {
+      list.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">No meetings logged</div><div class="empty-sub">Click "Log Meeting" to start.</div></div>`;
+      return;
+    }
+
+    list.innerHTML = meetings.map(m => `
+      <div class="meeting-card">
+        <div class="meeting-card-header" onclick="toggleMeeting('${m.id}')">
+          <div>
+            <div class="meeting-title-text">Meeting — ${fmt.date(m.date)}</div>
+            <div class="meeting-date">${m.venue || 'Location not specified'} · ${(m.attendance || []).length} present</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn btn-ghost btn-sm" style="font-size:0.9rem;" onclick="event.stopPropagation();openMinutes('${m.id}')">✨</button>
+            <button class="btn btn-ghost btn-sm" style="color:#dc2626;" onclick="event.stopPropagation();deleteMeeting('${m.id}')">✕</button>
+            <span style="color:var(--text-muted);font-size:0.8rem;">▾</span>
+          </div>
+        </div>
+        <div class="meeting-card-body" id="mb-${m.id}">
+          <div style="margin-top:16px;display:grid;gap:12px;">
+            ${m.agenda ? `<div><div style="font-family:var(--font-mono);font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px;">Discussion</div><p style="font-size:0.875rem;line-height:1.6;">${m.agenda}</p></div>` : ''}
+            ${m.decisions ? `<div><div style="font-family:var(--font-mono);font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px;">Decisions</div><p style="font-size:0.875rem;line-height:1.6;">${m.decisions}</p></div>` : ''}
+            ${m.actions ? `<div><div style="font-family:var(--font-mono);font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px;">Action Items</div><p style="font-size:0.875rem;line-height:1.6;">${m.actions}</p></div>` : ''}
+            ${m.nextDate ? `<div><div style="font-family:var(--font-mono);font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px;">Next Meeting</div><p style="font-size:0.875rem;">${fmt.date(m.nextDate)}</p></div>` : ''}
+            ${m.minutes ? `<div><div style="font-family:var(--font-mono);font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px;">Formal Minutes</div><div class="minutes-output" style="font-size:0.82rem;">${m.minutes}</div></div>` : ''}
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function toggleMeeting(id) {
+    const el = document.getElementById(`mb-${id}`);
+    el.classList.toggle('open');
+  }
+
+  function openNewMeeting() {
+    document.getElementById('mt-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('mt-venue').value = '';
+    document.getElementById('mt-agenda').value = '';
+    document.getElementById('mt-decisions').value = '';
+    document.getElementById('mt-actions').value = '';
+    document.getElementById('mt-next').value = '';
+
+    const grid = document.getElementById('attendance-grid');
+    grid.innerHTML = Members.all().filter(m => m.status === 'active').map(m =>
+      `<label class="attendance-item">
+        <input type="checkbox" name="att" value="${m.id}" checked /> ${m.name}
+      </label>`
+    ).join('');
+
+    showMeetingModal();
+  }
+
+  function saveMeeting() {
+    const date = document.getElementById('mt-date').value;
+    if (!date) { toast('Please select a meeting date.', 'error'); return; }
+
+    const attendance = [...document.querySelectorAll('input[name="att"]:checked')].map(cb => cb.value);
+
+    Meetings.add({
+      date,
+      venue: document.getElementById('mt-venue').value.trim(),
+      attendance,
+      agenda: document.getElementById('mt-agenda').value.trim(),
+      decisions: document.getElementById('mt-decisions').value.trim(),
+      actions: document.getElementById('mt-actions').value.trim(),
+      nextDate: document.getElementById('mt-next').value || null,
+    });
+
+    toast('Meeting logged!');
+    closeMeetingModal();
+    renderMeetings();
+  }
+
+  function deleteMeeting(id) {
+    if (!confirm('Delete this meeting record?')) return;
+    Meetings.save(Meetings.all().filter(m => m.id !== id));
+    toast('Meeting deleted.');
+    renderMeetings();
+  }
+
+  function openMinutes(id) {
+    currentMeetingId = id;
+    const meeting = Meetings.all().find(m => m.id === id);
+    if (meeting) {
+      const notes = [
+        meeting.date ? `Date: ${meeting.date}` : '',
+        meeting.venue ? `Venue: ${meeting.venue}` : '',
+        meeting.attendance?.length ? `Present: ${meeting.attendance.map(id => Members.get(id)?.name || id).join(', ')}` : '',
+        meeting.agenda ? `Discussion: ${meeting.agenda}` : '',
+        meeting.decisions ? `Decisions: ${meeting.decisions}` : '',
+        meeting.actions ? `Action items: ${meeting.actions}` : '',
+        meeting.nextDate ? `Next meeting: ${meeting.nextDate}` : '',
+      ].filter(Boolean).join('\n');
+      document.getElementById('raw-notes').value = notes;
+    }
+    document.getElementById('minutes-panel').style.display = 'block';
+    document.getElementById('minutes-result').style.display = 'none';
+    document.getElementById('minutes-panel').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  async function generateMinutes() {
+    const notes = document.getElementById('raw-notes').value.trim();
+    if (!notes) { toast('Please enter some meeting notes first.', 'error'); return; }
+
+    const result = document.getElementById('minutes-result');
+    const textEl = document.getElementById('minutes-text');
+    result.style.display = 'none';
+
+    const btn = event.target;
+    btn.textContent = '⏳ Generating…';
+    btn.disabled = true;
+
+    const system = `You are a professional secretary writing formal meeting minutes for a South African stokvel meeting. Convert the rough notes provided into properly formatted meeting minutes with: Date, Stokvel Name, Members Present, Apologies, Agenda Items Discussed, Decisions Made (numbered), Action Items with responsible person, Next Meeting Date (if mentioned). Write in formal but warm English. Use full sentences.`;
+
+    const output = await callAI(system, `Stokvel: ${cfg.name || 'Stokvel'}.\n\nRough notes:\n${notes}`, 500);
+
+    btn.textContent = '✨ Generate Formal Minutes';
+    btn.disabled = false;
+
+    if (output) {
+      textEl.textContent = output;
+    } else {
+      // Fallback structured minutes
+      textEl.textContent = `MEETING MINUTES — ${cfg.name || 'Stokvel'}\n\nDate: ${new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}\n\nNotes:\n${notes}\n\n[Add OpenAI API key to generate AI-formatted minutes]`;
+    }
+    result.style.display = 'block';
+  }
+
+  async function copyMinutes() {
+    const text = document.getElementById('minutes-text').textContent;
+    await navigator.clipboard.writeText(text).catch(() => {});
+    toast('Minutes copied!');
+  }
+
+  function saveMinutes() {
+    if (!currentMeetingId) { toast('No meeting selected.', 'error'); return; }
+    const minutes = document.getElementById('minutes-text').textContent;
+    Meetings.update(currentMeetingId, { minutes });
+    toast('Minutes saved to meeting!');
+    renderMeetings();
+  }
+
+  function generateAgenda() {
+    const members = Members.all().filter(m => m.status === 'active');
+    const outstanding = members.filter(m => memberPaymentStatus(m.id) !== 'paid');
+    const next = nextPayoutMember();
+    const cfg = Config.get();
+
+    const agenda = `MEETING AGENDA — ${cfg.name || 'Stokvel'}
+Date: ${new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}
+Venue: [To be confirmed]
+
+1. OPENING & WELCOME
+   - Call to order
+   - Apologies for absence
+
+2. PREVIOUS MINUTES
+   - Review and adoption of previous meeting minutes
+
+3. FINANCIAL REPORT
+   - Current pot total: ${fmt.currency(Contributions.potTotal())}
+   - Contributions received this month: ${members.length - outstanding.length} of ${members.length} members
+   ${outstanding.length ? `- Outstanding payments: ${outstanding.map(m => m.name).join(', ')}` : '- All members are up to date ✓'}
+
+4. UPCOMING PAYOUT
+   ${next ? `- Next member in line: ${next.name} (Position ${next.payoutPosition})` : '- No payout schedule set'}
+   - Confirm payout date and amount
+   - Payout frequency: ${cfg.payoutFrequency || 'Monthly'}
+
+5. MATTERS ARISING
+   - Review action items from previous meeting
+   - Any member concerns or proposals
+
+6. GENERAL / NEW BUSINESS
+   - [Add agenda items here]
+
+7. NEXT MEETING
+   - Confirm date, time, and venue
+
+8. CLOSE
+   - Closing prayer / word
+
+Prepared by: ${cfg.adminName || 'Administrator'}`;
+
+    document.getElementById('agenda-text').textContent = agenda;
+    document.getElementById('agenda-output').style.display = 'block';
+  }
+
+  async function copyAgenda() {
+    await navigator.clipboard.writeText(document.getElementById('agenda-text').textContent).catch(() => {});
+    toast('Agenda copied!');
+  }
+
+  function showMeetingModal() {
+    const m = document.getElementById('meeting-modal');
+    m.style.display = 'flex';
+    setTimeout(() => m.classList.add('show'), 10);
+  }
+
+  function closeMeetingModal() {
+    const m = document.getElementById('meeting-modal');
+    m.classList.remove('show');
+    setTimeout(() => m.style.display = 'none', 200);
+  }
+
+  document.getElementById('meeting-modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('meeting-modal')) closeMeetingModal();
+  });
+
+  renderMeetings();
+  // Show minutes panel by default if meetings exist
+  if (Meetings.all().length) document.getElementById('minutes-panel').style.display = 'block';
+</script>
+</body>
+</html>

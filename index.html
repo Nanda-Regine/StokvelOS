@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StokvelOS — Dashboard</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="shared.css" />
+</head>
+<body>
+
+<div class="app-layout">
+  <nav class="sidebar" id="sidebar"></nav>
+
+  <main class="main-content">
+    <div class="page-header" style="display:flex; align-items:center; justify-content:space-between;">
+      <h1 class="page-title" id="page-heading">Dashboard</h1>
+      <span id="today-date" style="font-family:var(--font-mono);font-size:0.72rem;color:var(--text-muted);"></span>
+    </div>
+
+    <div class="page-body">
+
+      <!-- STAT CARDS -->
+      <div class="stat-grid" id="stat-grid">
+        <div class="stat-card" style="animation-delay:0.05s">
+          <div class="stat-label">Current Pot</div>
+          <div class="stat-value" id="stat-pot">R0</div>
+          <div class="stat-sub">Total confirmed contributions</div>
+        </div>
+        <div class="stat-card" style="animation-delay:0.1s">
+          <div class="stat-label">Next Payout</div>
+          <div class="stat-value" id="stat-payout" style="font-size:1.1rem;padding-top:6px;">—</div>
+          <div class="stat-sub" id="stat-payout-date">No schedule set</div>
+        </div>
+        <div class="stat-card" style="animation-delay:0.15s">
+          <div class="stat-label">Paid This Month</div>
+          <div class="stat-value" id="stat-paid">0 / 0</div>
+          <div class="stat-sub">Members contributed</div>
+        </div>
+        <div class="stat-card" style="animation-delay:0.2s">
+          <div class="stat-label">Active Members</div>
+          <div class="stat-value" id="stat-members">0</div>
+          <div class="stat-sub">in your stokvel</div>
+        </div>
+      </div>
+
+      <!-- QUICK ACTIONS -->
+      <div class="quick-actions">
+        <a href="contributions.html" class="btn btn-primary">+ Record Payment</a>
+        <button class="btn btn-gold" onclick="openReminderModal()">📲 Send Reminders</button>
+        <a href="members.html" class="btn btn-outline">👥 View Members</a>
+        <a href="meetings.html" class="btn btn-outline">📋 Log Meeting</a>
+      </div>
+
+      <!-- RECENT ACTIVITY + AI HEALTH REPORT -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;flex-wrap:wrap;">
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Recent Contributions</span>
+            <a href="contributions.html" style="font-family:var(--font-mono);font-size:0.68rem;color:var(--gold);text-decoration:none;">View all →</a>
+          </div>
+          <div class="table-wrap">
+            <table id="recent-table">
+              <thead>
+                <tr>
+                  <th>Member</th>
+                  <th>Amount</th>
+                  <th>Date</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="recent-tbody">
+                <tr><td colspan="4"><div class="empty-state" style="padding:30px 0"><div class="empty-icon">💰</div><div class="empty-title">No contributions yet</div></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <!-- MEMBERS STATUS -->
+          <div class="card" style="margin-bottom:20px;">
+            <div class="card-header">
+              <span class="card-title">This Month's Status</span>
+            </div>
+            <div class="card-body" id="member-status-list" style="padding:12px 16px;">
+              <div class="empty-state" style="padding:20px 0"><div class="empty-sub">No members added yet</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI MONTHLY HEALTH REPORT -->
+      <div class="ai-card" id="health-card">
+        <div class="ai-card-label">📊 Monthly Stokvel Health Report</div>
+        <div class="ai-card-text" id="health-text">
+          <div class="ai-loading">
+            <div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div>
+            <span style="margin-left:8px;">Generating your monthly health report…</span>
+          </div>
+        </div>
+        <div style="margin-top:14px;">
+          <button class="btn btn-sm" style="background:rgba(202,138,4,0.15);color:var(--gold);border:1px solid rgba(202,138,4,0.3);" onclick="loadHealthReport(true)">↻ Refresh Report</button>
+        </div>
+      </div>
+
+    </div><!-- /page-body -->
+  </main>
+</div>
+
+<!-- REMINDER MODAL -->
+<div class="modal-overlay" id="reminder-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">📲 WhatsApp Payment Reminders</span>
+      <button class="btn btn-ghost" onclick="closeModal('reminder-modal')">✕</button>
+    </div>
+    <div class="modal-body" id="reminder-body">
+      <div class="ai-loading"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div><span style="margin-left:8px;">Generating reminders…</span></div>
+    </div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script>
+  requireSetup();
+
+  document.getElementById('sidebar').innerHTML = renderNav();
+  highlightNav();
+
+  const cfg = Config.get();
+  document.getElementById('page-heading').textContent = cfg.name || 'Dashboard';
+  document.getElementById('today-date').textContent = fmt.date(new Date());
+
+  function loadDashboard() {
+    const members = Members.all();
+    const contributions = Contributions.all();
+    const currentMonthContribs = Contributions.currentMonth();
+    const activeMembers = members.filter(m => m.status === 'active');
+
+    // Pot total
+    document.getElementById('stat-pot').textContent = fmt.currency(Contributions.potTotal());
+
+    // Next payout
+    const next = nextPayoutMember();
+    if (next) {
+      document.getElementById('stat-payout').textContent = next.name.split(' ')[0];
+      document.getElementById('stat-payout-date').textContent = `${cfg.payoutFrequency || 'Monthly'} payout · Position ${next.payoutPosition || 1}`;
+    }
+
+    // Paid this month
+    const paidThisMonth = new Set(currentMonthContribs.filter(c => c.status === 'confirmed').map(c => c.memberId));
+    document.getElementById('stat-paid').textContent = `${paidThisMonth.size} / ${activeMembers.length}`;
+
+    // Active members
+    document.getElementById('stat-members').textContent = activeMembers.length;
+
+    // Recent contributions (last 5)
+    const recent = [...contributions].sort((a, b) => new Date(b.recordedAt) - new Date(a.recordedAt)).slice(0, 5);
+    const tbody = document.getElementById('recent-tbody');
+    if (recent.length) {
+      tbody.innerHTML = recent.map(c => {
+        const member = Members.get(c.memberId);
+        return `<tr>
+          <td>${member?.name || 'Unknown'}</td>
+          <td style="font-family:var(--font-mono);font-weight:500;">${fmt.currency(c.amount)}</td>
+          <td style="font-family:var(--font-mono);font-size:0.78rem;">${fmt.dateShort(c.date)}</td>
+          <td><span class="badge badge-${c.status}">${c.status}</span></td>
+        </tr>`;
+      }).join('');
+    }
+
+    // Member status list
+    const statusList = document.getElementById('member-status-list');
+    if (activeMembers.length) {
+      statusList.innerHTML = activeMembers.slice(0, 6).map(m => {
+        const status = memberPaymentStatus(m.id);
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+          <span style="font-size:0.875rem;">${m.name}</span>
+          <span class="badge badge-${status}">${status}</span>
+        </div>`;
+      }).join('');
+      if (activeMembers.length > 6) {
+        statusList.innerHTML += `<div style="padding-top:8px;"><a href="members.html" style="font-family:var(--font-mono);font-size:0.68rem;color:var(--gold);">+${activeMembers.length - 6} more →</a></div>`;
+      }
+    }
+  }
+
+  async function loadHealthReport(force = false) {
+    const cacheKey = `health_${new Date().getFullYear()}_${new Date().getMonth()}`;
+    const cached = DB.get(cacheKey);
+    if (cached && !force) {
+      document.getElementById('health-text').innerHTML = `<p>${cached}</p>`;
+      return;
+    }
+
+    document.getElementById('health-text').innerHTML = `<div class="ai-loading"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div><span style="margin-left:8px;">Generating your monthly health report…</span></div>`;
+
+    const members = Members.all().filter(m => m.status === 'active');
+    const current = Contributions.currentMonth();
+    const paidIds = new Set(current.filter(c => c.status === 'confirmed').map(c => c.memberId));
+    const lateIds = members.filter(m => !paidIds.has(m.id)).map(m => m.name);
+
+    const dataStr = `Stokvel: ${cfg.name} (${cfg.type}). ${members.length} active members. Monthly contribution: R${cfg.monthlyAmount}. This month: ${paidIds.size}/${members.length} paid. Outstanding members: ${lateIds.join(', ') || 'none'}. Total pot: R${Contributions.potTotal().toFixed(0)}.`;
+
+    const system = `You are a financial advisor specializing in South African stokvel management. Based on the data provided, write a brief monthly health report in 3-4 sentences covering: contribution compliance rate, any concerning patterns, and one specific recommendation for the administrator. Be supportive and practical. Write in warm, professional South African English.`;
+
+    const result = await callAI(system, dataStr, 200);
+
+    if (result) {
+      DB.set(cacheKey, result);
+      document.getElementById('health-text').innerHTML = `<p>${result}</p>`;
+    } else {
+      // Fallback
+      const rate = members.length ? Math.round((paidIds.size / members.length) * 100) : 0;
+      const fallback = `Your stokvel has a ${rate}% contribution rate this month${rate < 80 ? ', which is below the healthy 80% benchmark' : ', which is excellent'}. ${lateIds.length ? `${lateIds.length} member${lateIds.length > 1 ? 's' : ''} still owe this month's contribution — consider sending friendly reminders.` : 'All members are up to date — well done!'} Keep your records updated regularly to stay on top of your stokvel's financial health.`;
+      document.getElementById('health-text').innerHTML = `<p>${fallback}</p>`;
+    }
+  }
+
+  async function openReminderModal() {
+    const modal = document.getElementById('reminder-modal');
+    modal.style.display = 'flex';
+    setTimeout(() => modal.classList.add('show'), 10);
+
+    const members = Members.all().filter(m => m.status === 'active');
+    const outstanding = members.filter(m => {
+      const status = memberPaymentStatus(m.id);
+      return status === 'outstanding' || status === 'late';
+    });
+
+    const body = document.getElementById('reminder-body');
+
+    if (!outstanding.length) {
+      body.innerHTML = `<div class="empty-state"><div class="empty-icon">✅</div><div class="empty-title">All caught up!</div><div class="empty-sub">No outstanding payments this month.</div></div>`;
+      return;
+    }
+
+    body.innerHTML = outstanding.map(m => `
+      <div style="border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px;" id="rm-${m.id}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <strong style="font-family:var(--font-display);">${m.name}</strong>
+          <span class="badge badge-outstanding">R${m.monthlyAmount || cfg.monthlyAmount} due</span>
+        </div>
+        <div class="ai-loading" id="msg-loading-${m.id}"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div><span style="margin-left:8px;font-size:0.72rem;">Generating message…</span></div>
+        <div id="msg-text-${m.id}" style="display:none;font-size:0.875rem;line-height:1.6;color:var(--text-mid);font-style:italic;"></div>
+        <div id="msg-actions-${m.id}" style="display:none;margin-top:10px;">
+          <a id="wa-link-${m.id}" href="#" target="_blank" class="btn btn-gold btn-sm">📲 Send via WhatsApp</a>
+        </div>
+      </div>
+    `).join('');
+
+    // Generate messages
+    for (const m of outstanding) {
+      const system = `Write a friendly, respectful WhatsApp reminder message in South African English for a stokvel member who has an outstanding contribution. Include: member name, amount owed, and that it's due this month. Keep it warm, not threatening. Under 3 sentences. Add a stokvel solidarity sentiment. Do not use asterisks or formatting — plain text only.`;
+      const userMsg = `Member: ${m.name}, Amount: R${m.monthlyAmount || cfg.monthlyAmount}, Stokvel: ${cfg.name}`;
+
+      const result = await callAI(system, userMsg, 100);
+      const msgText = result || `Hi ${m.name.split(' ')[0]}, just a friendly reminder that your R${m.monthlyAmount || cfg.monthlyAmount} contribution to ${cfg.name} is due this month. Together we keep each other strong — please arrange payment when you can. Siyabonga! 🙏`;
+
+      document.getElementById(`msg-loading-${m.id}`).style.display = 'none';
+      const textEl = document.getElementById(`msg-text-${m.id}`);
+      textEl.textContent = msgText;
+      textEl.style.display = 'block';
+
+      const phone = (m.phone || '').replace(/\D/g, '').replace(/^0/, '27');
+      const waLink = document.getElementById(`wa-link-${m.id}`);
+      waLink.href = `https://wa.me/${phone}?text=${encodeURIComponent(msgText)}`;
+      document.getElementById(`msg-actions-${m.id}`).style.display = 'block';
+    }
+  }
+
+  function closeModal(id) {
+    const modal = document.getElementById(id);
+    modal.classList.remove('show');
+    setTimeout(() => modal.style.display = 'none', 200);
+  }
+
+  document.querySelectorAll('.modal-overlay').forEach(m => {
+    m.addEventListener('click', e => { if (e.target === m) closeModal(m.id); });
+  });
+
+  loadDashboard();
+  loadHealthReport();
+</script>
+</body>
+</html>

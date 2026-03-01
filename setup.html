@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StokvelOS — Setup</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="shared.css" />
+  <style>
+    body {
+      background: var(--green-deep);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .setup-container {
+      max-width: 560px;
+      width: 100%;
+    }
+
+    .setup-logo {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .setup-logo .logo-mark {
+      width: 64px; height: 64px;
+      background: var(--gold);
+      border-radius: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-display);
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--green-deep);
+      margin-bottom: 16px;
+    }
+
+    .setup-logo h1 {
+      font-family: var(--font-display);
+      font-size: 2rem;
+      color: var(--gold-pale);
+      font-weight: 400;
+    }
+
+    .setup-logo p {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: rgba(254,249,195,0.5);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-top: 6px;
+    }
+
+    .setup-card {
+      background: white;
+      border-radius: 12px;
+      padding: 40px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+
+    .step-indicator {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 32px;
+    }
+
+    .step-dot {
+      height: 3px;
+      flex: 1;
+      background: var(--border);
+      border-radius: 100px;
+      transition: background 0.3s;
+    }
+
+    .step-dot.active { background: var(--gold); }
+    .step-dot.done { background: var(--green-mid); }
+
+    .step-panel { display: none; }
+    .step-panel.active { display: block; animation: fadeUp 0.3s ease; }
+
+    .step-heading {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      color: var(--green-deep);
+      margin-bottom: 6px;
+    }
+
+    .step-sub {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      letter-spacing: 0.06em;
+      margin-bottom: 28px;
+    }
+
+    .type-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    .type-btn {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: white;
+    }
+
+    .type-btn:hover { border-color: var(--green-mid); }
+
+    .type-btn.selected {
+      border-color: var(--gold);
+      background: rgba(202,138,4,0.06);
+    }
+
+    .type-icon { font-size: 1.3rem; display: block; margin-bottom: 4px; }
+
+    .type-label {
+      font-family: var(--font-mono);
+      font-size: 0.62rem;
+      color: var(--text-mid);
+      letter-spacing: 0.06em;
+    }
+
+    .payout-options {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .payout-btn {
+      flex: 1;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      text-align: center;
+      cursor: pointer;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--text-mid);
+      background: white;
+      transition: all 0.2s;
+    }
+
+    .payout-btn:hover { border-color: var(--green-mid); }
+    .payout-btn.selected { border-color: var(--gold); background: rgba(202,138,4,0.06); color: var(--green-deep); }
+
+    .setup-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 32px;
+    }
+
+    .province-select { width: 100%; }
+  </style>
+</head>
+<body>
+<div class="setup-container">
+  <div class="setup-logo">
+    <div class="logo-mark">S</div>
+    <h1>StokvelOS</h1>
+    <p>Your Stokvel. Organised. Intelligent. Together.</p>
+  </div>
+
+  <div class="setup-card">
+    <div class="step-indicator">
+      <div class="step-dot active" id="dot-0"></div>
+      <div class="step-dot" id="dot-1"></div>
+      <div class="step-dot" id="dot-2"></div>
+    </div>
+
+    <!-- STEP 1 -->
+    <div class="step-panel active" id="step-0">
+      <h2 class="step-heading">Welcome! Let's set up your stokvel.</h2>
+      <p class="step-sub">Step 1 of 3 — Basic information</p>
+
+      <div class="form-group">
+        <label class="form-label">Stokvel Name</label>
+        <input type="text" class="form-input" id="s-name" placeholder="e.g. Mzansi Savings Club" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Stokvel Type</label>
+        <div class="type-grid">
+          <div class="type-btn" data-type="General" onclick="selectType(this)">
+            <span class="type-icon">🤝</span>
+            <span class="type-label">General</span>
+          </div>
+          <div class="type-btn" data-type="Grocery" onclick="selectType(this)">
+            <span class="type-icon">🛒</span>
+            <span class="type-label">Grocery</span>
+          </div>
+          <div class="type-btn" data-type="Burial" onclick="selectType(this)">
+            <span class="type-icon">🕊️</span>
+            <span class="type-label">Burial</span>
+          </div>
+          <div class="type-btn" data-type="Investment" onclick="selectType(this)">
+            <span class="type-icon">📈</span>
+            <span class="type-label">Investment</span>
+          </div>
+          <div class="type-btn" data-type="Christmas" onclick="selectType(this)">
+            <span class="type-icon">🎄</span>
+            <span class="type-label">Christmas</span>
+          </div>
+          <div class="type-btn" data-type="Other" onclick="selectType(this)">
+            <span class="type-icon">⭐</span>
+            <span class="type-label">Other</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Province</label>
+        <select class="form-select province-select" id="s-province">
+          <option value="">Select province…</option>
+          <option>Eastern Cape</option>
+          <option>Free State</option>
+          <option>Gauteng</option>
+          <option>KwaZulu-Natal</option>
+          <option>Limpopo</option>
+          <option>Mpumalanga</option>
+          <option>Northern Cape</option>
+          <option>North West</option>
+          <option>Western Cape</option>
+        </select>
+      </div>
+
+      <div class="setup-nav">
+        <span></span>
+        <button class="btn btn-gold" onclick="nextStep(1)">Continue →</button>
+      </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div class="step-panel" id="step-1">
+      <h2 class="step-heading">Membership & contributions</h2>
+      <p class="step-sub">Step 2 of 3 — How your stokvel works</p>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Number of Members</label>
+          <input type="number" class="form-input" id="s-members" placeholder="e.g. 10" min="2" max="100" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Monthly Contribution (R)</label>
+          <input type="number" class="form-input" id="s-amount" placeholder="e.g. 500" min="1" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Admin / Chairperson Name</label>
+        <input type="text" class="form-input" id="s-admin" placeholder="Your full name" />
+      </div>
+
+      <div class="setup-nav">
+        <button class="btn btn-outline" onclick="prevStep(0)">← Back</button>
+        <button class="btn btn-gold" onclick="nextStep(2)">Continue →</button>
+      </div>
+    </div>
+
+    <!-- STEP 3 -->
+    <div class="step-panel" id="step-2">
+      <h2 class="step-heading">Payout schedule</h2>
+      <p class="step-sub">Step 3 of 3 — When members receive their money</p>
+
+      <div class="form-group">
+        <label class="form-label">Payout Frequency</label>
+        <div class="payout-options">
+          <div class="payout-btn" data-freq="Monthly" onclick="selectFreq(this)">Monthly</div>
+          <div class="payout-btn" data-freq="Quarterly" onclick="selectFreq(this)">Quarterly</div>
+          <div class="payout-btn" data-freq="Annually" onclick="selectFreq(this)">Annually</div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Payout Order Method</label>
+        <select class="form-select" id="s-payout-order">
+          <option value="draw">Draw / Lottery</option>
+          <option value="rotation">Rotating roster</option>
+          <option value="seniority">By seniority (join date)</option>
+          <option value="need">By financial need (mutual agreement)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Start Date</label>
+        <input type="date" class="form-input" id="s-start-date" />
+      </div>
+
+      <div class="setup-nav">
+        <button class="btn btn-outline" onclick="prevStep(1)">← Back</button>
+        <button class="btn btn-primary" onclick="finishSetup()">🎉 Launch StokvelOS</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script>
+  let currentStep = 0;
+  let selectedType = '';
+  let selectedFreq = '';
+
+  // Set today's date as default for start date
+  document.getElementById('s-start-date').value = new Date().toISOString().split('T')[0];
+
+  function selectType(el) {
+    document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedType = el.dataset.type;
+  }
+
+  function selectFreq(el) {
+    document.querySelectorAll('.payout-btn').forEach(b => b.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedFreq = el.dataset.freq;
+  }
+
+  function nextStep(to) {
+    if (to === 1) {
+      const name = document.getElementById('s-name').value.trim();
+      if (!name) { alert('Please enter your stokvel name.'); return; }
+      if (!selectedType) { alert('Please select a stokvel type.'); return; }
+    }
+    if (to === 2) {
+      const members = document.getElementById('s-members').value;
+      const amount = document.getElementById('s-amount').value;
+      const admin = document.getElementById('s-admin').value.trim();
+      if (!members || !amount || !admin) { alert('Please fill in all fields.'); return; }
+    }
+    showStep(to);
+  }
+
+  function prevStep(to) { showStep(to); }
+
+  function showStep(n) {
+    document.querySelectorAll('.step-panel').forEach((p, i) => {
+      p.classList.toggle('active', i === n);
+    });
+    document.querySelectorAll('.step-dot').forEach((d, i) => {
+      d.classList.toggle('active', i === n);
+      d.classList.toggle('done', i < n);
+    });
+    currentStep = n;
+  }
+
+  function finishSetup() {
+    if (!selectedFreq) { alert('Please select a payout frequency.'); return; }
+
+    const config = {
+      name: document.getElementById('s-name').value.trim(),
+      type: selectedType,
+      province: document.getElementById('s-province').value,
+      memberCount: Number(document.getElementById('s-members').value),
+      monthlyAmount: Number(document.getElementById('s-amount').value),
+      adminName: document.getElementById('s-admin').value.trim(),
+      payoutFrequency: selectedFreq,
+      payoutOrder: document.getElementById('s-payout-order').value,
+      startDate: document.getElementById('s-start-date').value,
+      createdAt: new Date().toISOString(),
+    };
+
+    Config.set(config);
+    window.location.href = 'index.html';
+  }
+</script>
+</body>
+</html>
