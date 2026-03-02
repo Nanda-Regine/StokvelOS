@@ -108,6 +108,7 @@ export interface Announcement {
   title: string
   body: string
   type: 'info' | 'warning' | 'success'
+  pinned: boolean
   created_by: string
   created_at: string
 }

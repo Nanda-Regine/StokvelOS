@@ -1,7 +1,9 @@
+// app/api/ai/reminders/route.ts  (REPLACE Batch 2 version)
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import OpenAI from 'openai'
+import { checkAiRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { buildWhatsAppUrl } from '@/lib/utils'
+import OpenAI from 'openai'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
@@ -11,59 +13,58 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { stokvelId, memberIds } = await request.json()
-    if (!stokvelId || !Array.isArray(memberIds)) {
-      return NextResponse.json({ error: 'stokvelId and memberIds required' }, { status: 400 })
+    const rl = checkAiRateLimit(user.id, 'reminders')
+    if (!rl.success) return rateLimitResponse(rl)
+
+    const { stokvelId, members } = await request.json()
+    if (!stokvelId || !members?.length) return NextResponse.json({ error: 'stokvelId and members required' }, { status: 400 })
+    if (members.length > 100) return NextResponse.json({ error: 'Max 100 members per request' }, { status: 400 })
+
+    const { data: stokvel } = await supabase.from('stokvels').select('name, monthly_amount').eq('id', stokvelId).single()
+
+    const prompt = members.map((m: { name: string; amount: number }) =>
+      `- ${m.name} owes R${m.amount}`
+    ).join('\n')
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      max_tokens: 600,
+      messages: [
+        {
+          role: 'system',
+          content: `You are writing WhatsApp reminder messages for a South African stokvel called "${stokvel?.name}". 
+For each member listed, write ONE friendly reminder under 3 sentences. Use Ubuntu spirit — warm, communal, never shaming.
+Include their name and amount. Use simple language. South African English.
+Respond ONLY with valid JSON array: [{"memberId": null, "memberName": "Name", "message": "..."}]
+Use the exact member names provided. No preamble, no markdown, just the JSON array.`,
+        },
+        { role: 'user', content: prompt },
+      ],
+    })
+
+    const text = completion.choices[0]?.message?.content?.trim() || '[]'
+    let reminders: Array<{ memberName: string; message: string }> = []
+    try {
+      reminders = JSON.parse(text.replace(/```json|```/g, '').trim())
+    } catch {
+      // Fallback to templated messages
+      reminders = members.map((m: { name: string; amount: number }) => ({
+        memberName: m.name,
+        message: `Hi ${m.name.split(' ')[0]}! 👋 Just a friendly reminder that your ${stokvel?.name} contribution of R${m.amount} is due. Our stokvel is stronger when we all contribute together. Please pay at your earliest convenience. 🙏`,
+      }))
     }
 
-    // Verify ownership
-    const { data: stokvel } = await supabase
-      .from('stokvels')
-      .select('name, monthly_amount')
-      .eq('id', stokvelId)
-      .eq('admin_id', user.id)
-      .single()
+    const result = members.map((m: { id: string; name: string; phone?: string; amount: number }, i: number) => ({
+      memberId:    m.id,
+      memberName:  m.name,
+      amount:      m.amount,
+      message:     reminders[i]?.message || `Hi ${m.name.split(' ')[0]}, your contribution of R${m.amount} is due.`,
+      whatsappUrl: m.phone ? buildWhatsAppUrl(m.phone, reminders[i]?.message || '') : null,
+    }))
 
-    if (!stokvel) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
-    const { data: members } = await supabase
-      .from('stokvel_members')
-      .select('id, name, phone, monthly_amount')
-      .eq('stokvel_id', stokvelId)
-      .in('id', memberIds)
-
-    if (!members?.length) return NextResponse.json({ reminders: [] })
-
-    const reminders = await Promise.all(
-      members.map(async (member) => {
-        const amount = member.monthly_amount ?? stokvel.monthly_amount
-
-        const completion = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: [{
-            role: 'user',
-            content: `Write a short, friendly WhatsApp reminder (max 2 sentences, South African tone) for ${member.name} to pay their R${amount} stokvel contribution to ${stokvel.name}. Be warm and respectful.`,
-          }],
-          max_tokens: 100,
-          temperature: 0.7,
-        })
-
-        const message = completion.choices[0].message.content?.trim() ?? `Hi ${member.name}, please remember to pay your R${amount} contribution to ${stokvel.name}.`
-        const whatsappUrl = member.phone ? buildWhatsAppUrl(member.phone, message) : null
-
-        return {
-          memberId: member.id,
-          memberName: member.name,
-          amount,
-          message,
-          whatsappUrl,
-        }
-      })
-    )
-
-    return NextResponse.json({ reminders })
+    return NextResponse.json({ reminders: result })
   } catch (err) {
-    console.error('[AI reminders]', err)
-    return NextResponse.json({ error: 'Failed to generate reminders' }, { status: 500 })
+    console.error('[AI Reminders]', err)
+    return NextResponse.json({ error: 'AI unavailable' }, { status: 500 })
   }
 }

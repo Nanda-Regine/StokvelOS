@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/shared/Sidebar'
 import type { Stokvel } from '@/types'
 
-export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default async function MeetingsLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')

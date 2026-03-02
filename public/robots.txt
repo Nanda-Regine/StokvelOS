@@ -1,0 +1,16 @@
+User-agent: *
+Allow: /
+Allow: /pricing
+Disallow: /dashboard
+Disallow: /members
+Disallow: /contributions
+Disallow: /meetings
+Disallow: /reports
+Disallow: /settings
+Disallow: /payouts
+Disallow: /announcements
+Disallow: /audit
+Disallow: /api/
+Disallow: /setup
+
+Sitemap: https://stokvelos.co.za/sitemap.xml

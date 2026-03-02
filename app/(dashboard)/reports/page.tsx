@@ -1,8 +1,9 @@
+// app/reports/page.tsx
 import { redirect } from 'next/navigation'
-import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
+import type { Metadata } from 'next'
 import { ReportsClient } from '@/components/reports/ReportsClient'
-import type { Stokvel, StokvelMember, Contribution } from '@/types'
+import type { Contribution, StokvelMember, Stokvel } from '@/types'
 
 export const metadata: Metadata = { title: 'Reports' }
 
@@ -19,33 +20,33 @@ export default async function ReportsPage() {
 
   if (!stokvel) redirect('/setup')
 
-  const currentYear = new Date().getFullYear()
+  // All-time contributions
+  const { data: contributions } = await supabase
+    .from('contributions')
+    .select('*')
+    .eq('stokvel_id', stokvel.id)
+    .order('date', { ascending: true })
 
-  const [{ data: members }, { data: contributions }, { data: payouts }] = await Promise.all([
-    supabase
-      .from('stokvel_members')
-      .select('*')
-      .eq('stokvel_id', stokvel.id)
-      .order('payout_position'),
-    supabase
-      .from('contributions')
-      .select('*, stokvel_members(name)')
-      .eq('stokvel_id', stokvel.id)
-      .gte('date', `${currentYear}-01-01`)
-      .order('date', { ascending: false }),
-    supabase
-      .from('payouts')
-      .select('*, stokvel_members(name)')
-      .eq('stokvel_id', stokvel.id)
-      .order('date', { ascending: false }),
-  ])
+  // Active members
+  const { data: members } = await supabase
+    .from('stokvel_members')
+    .select('*')
+    .eq('stokvel_id', stokvel.id)
+    .order('payout_position', { ascending: true, nullsFirst: false })
+
+  // Payouts
+  const { data: payouts } = await supabase
+    .from('payouts')
+    .select('*, stokvel_members(name)')
+    .eq('stokvel_id', stokvel.id)
+    .order('date', { ascending: false })
 
   return (
     <ReportsClient
       stokvel={stokvel as Stokvel}
-      members={(members ?? []) as StokvelMember[]}
-      contributions={(contributions ?? []) as Contribution[]}
-      payouts={(payouts ?? []) as Array<Record<string, unknown>>}
+      contributions={(contributions || []) as Contribution[]}
+      members={(members || []) as StokvelMember[]}
+      payouts={payouts || []}
     />
   )
 }

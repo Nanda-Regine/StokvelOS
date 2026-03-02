@@ -1,266 +1,256 @@
 'use client'
+// app/dashboard/DashboardClient.tsx  (REPLACE Batch 2 — adds announcements widget)
 
 import { useState } from 'react'
-import Link from 'next/link'
-import { StatCards } from '@/components/dashboard/StatCards'
+import { StatCards }       from '@/components/dashboard/StatCards'
 import { HealthReportCard } from '@/components/dashboard/HealthReportCard'
-import { RemindersModal } from '@/components/shared/RemindersModal'
-import { Badge } from '@/components/ui/Badge'
-import { formatCurrency, formatDateShort, formatDate, getPaymentStatusVariant, getInitials } from '@/lib/utils'
-import type { Contribution, StokvelMember, Stokvel, DashboardStats } from '@/types'
+import { RemindersModal }   from '@/components/shared/RemindersModal'
+import { BulkPaymentModal } from '@/components/contributions/BulkPaymentModal'
+import { Button }           from '@/components/ui/Button'
+import { Badge }            from '@/components/ui/Badge'
+import {
+  formatCurrency, formatDate, getInitials, buildWhatsAppUrl,
+} from '@/lib/utils'
+import Link from 'next/link'
+import type { Stokvel, StokvelMember, Contribution, Announcement } from '@/types'
 
 interface DashboardClientProps {
-  stokvel:            Stokvel
-  members:            StokvelMember[]
-  contributions:      Contribution[]
-  stats:              DashboardStats
-  outstandingMembers: { id: string; name: string; amount: number; phone?: string | null; status: string }[]
-  paidIds:            string[]
+  stokvel:        Stokvel
+  stats:          {
+    potTotal:         number
+    memberCount:      number
+    paidThisMonth:    number
+    totalThisMonth:   number
+    complianceRate:   number
+    outstandingCount: number
+    yearlyTarget:     number
+    yearlyCollected:  number
+    nextPayout:       StokvelMember | null
+  }
+  recentContribs:   Contribution[]
+  activeMembers:    StokvelMember[]
+  announcements:    Announcement[]
+  healthReport?:    string
 }
 
 export function DashboardClient({
   stokvel,
-  members,
-  contributions,
   stats,
-  outstandingMembers,
-  paidIds,
+  recentContribs,
+  activeMembers,
+  announcements,
+  healthReport,
 }: DashboardClientProps) {
-  const [remindersOpen, setRemindersOpen] = useState(false)
+  const [remindersOpen,  setRemindersOpen]  = useState(false)
+  const [bulkModalOpen,  setBulkModalOpen]  = useState(false)
 
-  const recentContribs = contributions.slice(0, 6)
-  const paidSet = new Set(paidIds)
+  const outstandingMembers = activeMembers.filter(m => {
+    const now      = new Date()
+    const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+    return !recentContribs.some(c => c.member_id === m.id && c.status === 'confirmed' && c.date >= monthStr)
+  })
 
-  function getMemberStatus(memberId: string) {
-    if (paidSet.has(memberId)) return 'paid'
-    const day = new Date().getDate()
-    return day > 5 ? 'late' : 'outstanding'
-  }
+  const outstandingIds = new Set(outstandingMembers.map(m => m.id))
+
+  const pinnedAnnouncements  = announcements.filter(a => a.pinned)
+  const recentAnnouncements  = announcements.filter(a => !a.pinned).slice(0, 3)
+  const displayAnnouncements = [...pinnedAnnouncements, ...recentAnnouncements].slice(0, 4)
+
+  const TYPE_EMOJI: Record<string, string> = { info: 'ℹ️', success: '✅', warning: '⚠️' }
 
   return (
     <>
-      {/* Page header */}
+      {/* Header */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">{stokvel.name}</h1>
+          <h1 className="page-title">Dashboard</h1>
           <p className="font-mono text-xs mt-1" style={{ color: '#9ca3af' }}>
-            {formatDate(new Date())} · {stokvel.type} stokvel
+            {stokvel.name}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Link href="/contributions" className="btn btn-primary btn-md">
-            + Record Payment
+        <div className="flex gap-2 flex-wrap">
+          {outstandingMembers.length > 0 && (
+            <Button variant="outline" size="md" onClick={() => setRemindersOpen(true)}>
+              📲 Send Reminders ({outstandingMembers.length})
+            </Button>
+          )}
+          <Button variant="gold" size="md" onClick={() => setBulkModalOpen(true)}>
+            ⚡ Bulk Record
+          </Button>
+          <Link href="/contributions">
+            <Button variant="primary" size="md">+ Record Payment</Button>
           </Link>
-          <button
-            className="btn btn-gold btn-md"
-            onClick={() => setRemindersOpen(true)}
-          >
-            📲 Send Reminders
-            {outstandingMembers.length > 0 && (
-              <span
-                className="ml-1 w-5 h-5 rounded-full text-xs flex items-center justify-center font-mono"
-                style={{ background: 'rgba(10,36,18,0.25)' }}
-              >
-                {outstandingMembers.length}
-              </span>
-            )}
-          </button>
         </div>
       </div>
 
-      <div className="page-body space-y-6">
+      <div className="page-body space-y-5">
 
-        {/* Stat Cards */}
+        {/* Stat cards */}
         <StatCards stats={stats} stokvel={stokvel} />
 
-        {/* Quick Actions */}
-        <div className="quick-actions">
-          <Link href="/contributions" className="btn btn-outline btn-md">
-            💰 View Contributions
-          </Link>
-          <Link href="/members" className="btn btn-outline btn-md">
-            👥 Manage Members
-          </Link>
-          <Link href="/meetings" className="btn btn-outline btn-md">
-            📋 Log Meeting
-          </Link>
-          <Link href="/reports" className="btn btn-outline btn-md">
-            📊 View Reports
-          </Link>
-        </div>
-
-        {/* Two column layout */}
-        <div className="grid md:grid-cols-2 gap-5">
-
-          {/* Recent Contributions */}
-          <div className="card">
-            <div className="card-header">
-              <span className="card-title">Recent Contributions</span>
-              <Link
-                href="/contributions"
-                className="font-mono text-xs hover:underline"
-                style={{ color: '#ca8a04' }}
-              >
-                View all →
-              </Link>
-            </div>
-            <div className="table-wrap">
-              {recentContribs.length ? (
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Member</th>
-                      <th>Amount</th>
-                      <th>Date</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentContribs.map((c: Contribution & { stokvel_members?: { name: string } }) => (
-                      <tr key={c.id}>
-                        <td className="font-medium">
-                          {c.stokvel_members?.name || 'Unknown'}
-                        </td>
-                        <td className="font-mono font-medium">
-                          {formatCurrency(c.amount)}
-                        </td>
-                        <td className="font-mono text-xs">
-                          {formatDateShort(c.date)}
-                        </td>
-                        <td>
-                          <Badge variant={c.status === 'confirmed' ? 'success' : c.status === 'pending' ? 'warning' : 'danger'}>
-                            {c.status}
-                          </Badge>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <div className="empty-state">
-                  <div className="empty-icon">💰</div>
-                  <div className="empty-title">No contributions yet</div>
-                  <div className="empty-sub">
-                    <Link href="/contributions" style={{ color: '#ca8a04' }}>
-                      Record the first payment →
-                    </Link>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Member Status */}
-          <div className="card">
-            <div className="card-header">
-              <span className="card-title">This Month&apos;s Status</span>
-              <Link
-                href="/members"
-                className="font-mono text-xs hover:underline"
-                style={{ color: '#ca8a04' }}
-              >
-                Manage →
-              </Link>
-            </div>
-            <div className="card-body p-0">
-              {members.length ? (
-                <div>
-                  {members.slice(0, 7).map((m: StokvelMember) => {
-                    const status  = getMemberStatus(m.id)
-                    const initials = getInitials(m.name)
-                    return (
-                      <div
-                        key={m.id}
-                        className="flex items-center justify-between px-5 py-3"
-                        style={{ borderBottom: '1px solid rgba(15,61,30,0.06)' }}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-mono font-medium flex-shrink-0"
-                            style={{
-                              background: status === 'paid'
-                                ? 'rgba(22,163,74,0.1)'
-                                : status === 'late'
-                                ? 'rgba(220,38,38,0.1)'
-                                : 'rgba(202,138,4,0.1)',
-                              color: status === 'paid' ? '#16a34a' : status === 'late' ? '#dc2626' : '#ca8a04',
-                            }}
-                          >
-                            {initials}
-                          </div>
-                          <span className="text-sm font-medium">{m.name}</span>
-                        </div>
-                        <Badge variant={getPaymentStatusVariant(status)}>
-                          {status}
-                        </Badge>
-                      </div>
-                    )
-                  })}
-                  {members.length > 7 && (
-                    <div className="px-5 py-3">
-                      <Link href="/members" className="font-mono text-xs" style={{ color: '#ca8a04' }}>
-                        +{members.length - 7} more members →
-                      </Link>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="empty-state">
-                  <div className="empty-icon">👥</div>
-                  <div className="empty-title">No members yet</div>
-                  <div className="empty-sub">
-                    <Link href="/members" style={{ color: '#ca8a04' }}>
-                      Add your first member →
-                    </Link>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
         {/* AI Health Report */}
-        <HealthReportCard stokvelId={stokvel.id} />
+        <HealthReportCard
+          stokvelId={stokvel.id}
+        />
 
-        {/* Yearly Progress */}
-        {stats.memberCount > 0 && (
+        {/* Announcements widget */}
+        {displayAnnouncements.length > 0 && (
           <div className="card">
             <div className="card-header">
-              <span className="card-title">Yearly Progress</span>
-              <span className="font-mono text-xs" style={{ color: '#9ca3af' }}>
-                {new Date().getFullYear()}
-              </span>
+              <span className="card-title">📢 Announcements</span>
+              <Link href="/announcements">
+                <button className="font-mono text-xs hover:underline" style={{ color: '#ca8a04' }}>
+                  View all →
+                </button>
+              </Link>
             </div>
-            <div className="card-body">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm" style={{ color: '#6b7280' }}>
-                  Annual target: {formatCurrency(stats.yearlyTarget)}
-                </span>
-                <span className="font-mono text-sm font-medium" style={{ color: '#0f3d1e' }}>
-                  {formatCurrency(stats.potTotal)}
-                </span>
-              </div>
-              <div className="progress-track" style={{ height: '10px' }}>
+            <div className="card-body space-y-3">
+              {displayAnnouncements.map(ann => (
                 <div
-                  className="progress-fill"
+                  key={ann.id}
+                  className="flex items-start gap-3 rounded-xl p-3"
                   style={{
-                    width: `${Math.min(100, stats.yearlyTarget > 0 ? (stats.potTotal / stats.yearlyTarget) * 100 : 0)}%`,
-                    background: 'linear-gradient(90deg, #16a34a, #ca8a04)',
+                    background:   ann.pinned ? 'rgba(202,138,4,0.04)' : 'rgba(248,250,248,0.6)',
+                    border:       `1px solid ${ann.pinned ? 'rgba(202,138,4,0.15)' : 'rgba(15,61,30,0.07)'}`,
                   }}
-                />
-              </div>
-              <p className="text-xs mt-2 font-mono" style={{ color: '#9ca3af' }}>
-                {stats.yearlyTarget > 0
-                  ? `${Math.round((stats.potTotal / stats.yearlyTarget) * 100)}% of annual target reached`
-                  : 'Set monthly amounts on members to track annual target'}
-              </p>
+                >
+                  <span className="text-lg flex-shrink-0">{TYPE_EMOJI[ann.type] || 'ℹ️'}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className="text-sm font-medium truncate" style={{ color: '#0a2412' }}>{ann.title}</span>
+                      {ann.pinned && (
+                        <span className="font-mono text-xs" style={{ color: '#ca8a04' }}>📌</span>
+                      )}
+                    </div>
+                    <p className="text-xs leading-relaxed line-clamp-2" style={{ color: '#6b7280' }}>{ann.body}</p>
+                  </div>
+                  <span className="font-mono text-xs flex-shrink-0" style={{ color: '#d1d5db' }}>
+                    {formatDate(ann.created_at)}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         )}
 
+        {/* Two-column: outstanding + recent */}
+        <div className="grid md:grid-cols-2 gap-5">
+
+          {/* Outstanding members */}
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">Outstanding This Month</span>
+              <Badge variant={outstandingMembers.length === 0 ? 'success' : 'danger'}>
+                {outstandingMembers.length === 0 ? 'All paid ✓' : `${outstandingMembers.length} unpaid`}
+              </Badge>
+            </div>
+            <div className="card-body">
+              {outstandingMembers.length === 0 ? (
+                <div className="text-center py-6">
+                  <div className="text-3xl mb-2">🎉</div>
+                  <p className="text-sm font-display" style={{ color: '#16a34a' }}>Everyone has paid this month!</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {outstandingMembers.slice(0, 6).map(m => (
+                    <div key={m.id} className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-mono flex-shrink-0"
+                          style={{ background: 'rgba(220,38,38,0.08)', color: '#dc2626' }}>
+                          {getInitials(m.name)}
+                        </div>
+                        <span className="text-sm truncate">{m.name}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className="font-mono text-xs" style={{ color: '#9ca3af' }}>
+                          {formatCurrency(m.monthly_amount || stokvel.monthly_amount)}
+                        </span>
+                        {m.phone && (
+                          <a
+                            href={buildWhatsAppUrl(m.phone, `Hi ${m.name.split(' ')[0]}, just a reminder your ${stokvel.name} contribution of ${formatCurrency(m.monthly_amount || stokvel.monthly_amount)} is due. 🙏`)}
+                            target="_blank" rel="noopener noreferrer"
+                            className="text-xs" style={{ color: '#25d366' }} title="WhatsApp"
+                          >
+                            📲
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {outstandingMembers.length > 6 && (
+                    <p className="font-mono text-xs text-center pt-1" style={{ color: '#9ca3af' }}>
+                      +{outstandingMembers.length - 6} more
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Recent contributions */}
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">Recent Payments</span>
+              <Link href="/contributions">
+                <button className="font-mono text-xs hover:underline" style={{ color: '#ca8a04' }}>View all →</button>
+              </Link>
+            </div>
+            <div className="card-body">
+              {recentContribs.length === 0 ? (
+                <div className="empty-state py-6">
+                  <div className="empty-sub">No payments recorded yet.</div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {recentContribs.slice(0, 8).map(c => {
+                    const member = activeMembers.find(m => m.id === c.member_id)
+                    return (
+                      <div key={c.id} className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-mono flex-shrink-0"
+                            style={{ background: 'rgba(22,163,74,0.1)', color: '#16a34a' }}>
+                            {getInitials(member?.name || '?')}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-xs font-medium truncate">{member?.name || 'Unknown'}</div>
+                            <div className="font-mono text-xs" style={{ color: '#9ca3af' }}>{formatDate(c.date)}</div>
+                          </div>
+                        </div>
+                        <span className="font-mono text-sm font-medium flex-shrink-0" style={{ color: '#16a34a' }}>
+                          {formatCurrency(c.amount)}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Next payout callout */}
+        {stats.nextPayout && (
+          <div
+            className="rounded-2xl p-5 flex items-center justify-between gap-4"
+            style={{
+              background: 'linear-gradient(135deg, rgba(202,138,4,0.08), rgba(202,138,4,0.04))',
+              border:     '1px solid rgba(202,138,4,0.2)',
+            }}
+          >
+            <div>
+              <p className="font-mono text-xs uppercase tracking-wider mb-1" style={{ color: '#9ca3af' }}>Next Payout</p>
+              <p className="font-display text-xl" style={{ color: '#0a2412' }}>{stats.nextPayout.name}</p>
+              <p className="font-mono text-sm mt-0.5" style={{ color: '#ca8a04' }}>
+                Position #{stats.nextPayout.payout_position} · {formatCurrency(stats.potTotal)} pot
+              </p>
+            </div>
+            <Link href="/payouts">
+              <Button variant="gold" size="md">Record Payout →</Button>
+            </Link>
+          </div>
+        )}
       </div>
 
-      {/* Reminders Modal */}
       <RemindersModal
         open={remindersOpen}
         onClose={() => setRemindersOpen(false)}
@@ -268,9 +258,19 @@ export function DashboardClient({
         outstandingMembers={outstandingMembers.map(m => ({
           id:     m.id,
           name:   m.name,
-          amount: m.amount,
-          phone:  m.phone || undefined,
+          phone:  m.phone || '',
+          amount: m.monthly_amount || stokvel.monthly_amount,
         }))}
+      />
+
+      <BulkPaymentModal
+        open={bulkModalOpen}
+        onClose={() => setBulkModalOpen(false)}
+        onSaved={() => window.location.reload()}
+        stokvelId={stokvel.id}
+        members={activeMembers}
+        defaultAmount={stokvel.monthly_amount}
+        outstandingIds={outstandingIds}
       />
     </>
   )

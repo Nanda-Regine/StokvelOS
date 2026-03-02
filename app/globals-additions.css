@@ -489,3 +489,210 @@
   0%, 100% { opacity: 0.4; transform: scale(0.85); }
   50%       { opacity: 1;   transform: scale(1);    }
 }
+/* ============================================================
+   StokvelOS — CSS Additions for Batch 5
+   Append this to your existing app/globals.css
+   ============================================================ */
+
+/* ── Skeleton loader ──────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(15, 61, 30, 0.06) 25%,
+    rgba(15, 61, 30, 0.12) 50%,
+    rgba(15, 61, 30, 0.06) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: 6px;
+}
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Audit log timeline dots ─────────────────────────────── */
+.audit-dot {
+  width:            8px;
+  height:           8px;
+  border-radius:    50%;
+  background:       rgba(15, 61, 30, 0.15);
+  flex-shrink:      0;
+  margin-top:       5px;
+}
+
+/* ── Announcement cards ──────────────────────────────────── */
+.announcement-card {
+  border-radius:    16px;
+  border:           1px solid rgba(15, 61, 30, 0.08);
+  background:       white;
+  padding:          20px;
+  transition:       transform 0.15s ease, box-shadow 0.15s ease;
+}
+.announcement-card:hover {
+  transform:        translateY(-2px);
+  box-shadow:       0 6px 20px rgba(15, 61, 30, 0.08);
+}
+.announcement-card.pinned {
+  border-color:     rgba(202, 138, 4, 0.25);
+  background:       rgba(202, 138, 4, 0.02);
+}
+
+/* ── Payout queue items ──────────────────────────────────── */
+.payout-queue-item {
+  display:          flex;
+  align-items:      center;
+  gap:              12px;
+  border-radius:    14px;
+  padding:          12px 14px;
+  border:           1px solid rgba(15, 61, 30, 0.06);
+  background:       rgba(248, 250, 248, 0.5);
+  transition:       all 0.15s ease;
+}
+.payout-queue-item.next {
+  border-color:     rgba(202, 138, 4, 0.2);
+  background:       rgba(202, 138, 4, 0.04);
+}
+.payout-queue-item.done {
+  border-color:     rgba(22, 163, 74, 0.15);
+  background:       rgba(22, 163, 74, 0.03);
+}
+
+/* ── Bulk payment member grid ────────────────────────────── */
+.member-picker-btn {
+  display:          flex;
+  align-items:      center;
+  gap:              10px;
+  border-radius:    14px;
+  border:           1px solid rgba(15, 61, 30, 0.12);
+  padding:          10px 12px;
+  background:       white;
+  cursor:           pointer;
+  transition:       all 0.12s ease;
+  text-align:       left;
+  width:            100%;
+}
+.member-picker-btn.selected {
+  border-color:     #0f3d1e;
+  background:       rgba(15, 61, 30, 0.05);
+}
+.member-picker-btn:hover:not(.selected) {
+  border-color:     rgba(15, 61, 30, 0.25);
+}
+
+/* ── Constitution viewer ─────────────────────────────────── */
+.constitution-viewer {
+  background:       rgba(248, 250, 248, 0.8);
+  border:           1px solid rgba(15, 61, 30, 0.08);
+  border-radius:    14px;
+  padding:          24px;
+  max-height:       520px;
+  overflow-y:       auto;
+  font-size:        0.875rem;
+  line-height:      1.7;
+  color:            #374151;
+  white-space:      pre-wrap;
+}
+.constitution-viewer::-webkit-scrollbar       { width: 5px; }
+.constitution-viewer::-webkit-scrollbar-track { background: transparent; }
+.constitution-viewer::-webkit-scrollbar-thumb { background: rgba(15,61,30,0.15); border-radius: 99px; }
+
+/* ── Settings side nav ───────────────────────────────────── */
+.settings-nav-btn {
+  display:          flex;
+  align-items:      center;
+  gap:              10px;
+  padding:          10px 12px;
+  border-radius:    12px;
+  border:           none;
+  background:       transparent;
+  cursor:           pointer;
+  width:            100%;
+  text-align:       left;
+  font-size:        0.85rem;
+  transition:       all 0.12s ease;
+  border-left:      3px solid transparent;
+  color:            #6b7280;
+}
+.settings-nav-btn.active {
+  background:       rgba(15, 61, 30, 0.07);
+  color:            #0a2412;
+  font-weight:      600;
+  border-left-color: #ca8a04;
+}
+.settings-nav-btn:hover:not(.active) {
+  background:       rgba(15, 61, 30, 0.04);
+  color:            #374151;
+}
+
+/* ── Statement page ──────────────────────────────────────── */
+.statement-stat-box {
+  background:       white;
+  border-radius:    14px;
+  padding:          16px;
+  border:           1px solid rgba(15, 61, 30, 0.1);
+  box-shadow:       0 1px 3px rgba(15, 61, 30, 0.06);
+}
+
+/* ── Payment grid cell states ────────────────────────────── */
+.grid-cell-paid    { background: rgba(22,163,74,0.08);  border: 1px solid rgba(22,163,74,0.2);  }
+.grid-cell-missed  { background: rgba(220,38,38,0.05);  border: 1px solid rgba(220,38,38,0.12); }
+.grid-cell-pending { background: rgba(202,138,4,0.06);  border: 1px solid rgba(202,138,4,0.2);  }
+.grid-cell-future  { background: rgba(248,250,248,0.8); border: 1px solid rgba(15,61,30,0.06);  }
+
+/* ── Rate limit toast ────────────────────────────────────── */
+.rate-limit-notice {
+  font-family:      var(--font-mono, monospace);
+  font-size:        0.75rem;
+  color:            #dc2626;
+  padding:          8px 12px;
+  background:       rgba(220, 38, 38, 0.06);
+  border-radius:    8px;
+  border:           1px solid rgba(220, 38, 38, 0.15);
+  margin-top:       8px;
+}
+
+/* ── Page header actions gap ─────────────────────────────── */
+.page-header-actions {
+  display:          flex;
+  align-items:      center;
+  gap:              10px;
+  flex-wrap:        wrap;
+}
+
+/* ── Mobile: hide secondary sidebar actions ──────────────── */
+@media (max-width: 768px) {
+  .page-header-actions .btn-outline {
+    display:        none;
+  }
+  .page-header-actions .btn-outline:first-child {
+    display:        inline-flex;
+  }
+  .constitution-viewer {
+    max-height:     320px;
+  }
+  .settings-nav-btn span:first-child {
+    font-size:      1rem;
+  }
+}
+
+/* ── Print styles (for statement page) ──────────────────── */
+@media print {
+  .sidebar,
+  .main-content > *:not(.print-content),
+  nav,
+  button,
+  a[href] {
+    display:        none !important;
+  }
+  body {
+    background:     white;
+    font-size:      10pt;
+  }
+  .print-content {
+    max-width:      100%;
+    margin:         0;
+    padding:        0;
+  }
+}
