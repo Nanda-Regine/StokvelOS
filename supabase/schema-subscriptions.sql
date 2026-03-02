@@ -15,6 +15,7 @@ CREATE TABLE public.subscriptions (
   amount          NUMERIC(10,2),
   billing_date    DATE,
   next_billing    DATE,
+  started_at      TIMESTAMPTZ,     -- when the active subscription started
   cancelled_at    TIMESTAMPTZ,
   created_at      TIMESTAMPTZ DEFAULT NOW(),
   updated_at      TIMESTAMPTZ DEFAULT NOW(),
@@ -27,13 +28,9 @@ CREATE TABLE public.payment_history (
   user_id         UUID NOT NULL REFERENCES public.profiles(id),
   stokvel_id      UUID REFERENCES public.stokvels(id),
   pf_payment_id   TEXT NOT NULL,
-  m_payment_id    TEXT,
-  amount_gross    NUMERIC(10,2),
-  amount_fee      NUMERIC(10,2),
-  amount_net      NUMERIC(10,2),
+  amount          NUMERIC(10,2),
   plan_id         TEXT,
-  status          TEXT,            -- 'COMPLETE' | 'FAILED' | 'CANCELLED'
-  item_name       TEXT,
+  status          TEXT,            -- 'complete' | 'failed' | 'cancelled'
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
