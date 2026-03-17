@@ -3,9 +3,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { checkAiRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { writeAuditLog, AUDIT_ACTIONS } from '@/lib/audit'
-import OpenAI from 'openai'
+import Anthropic from '@anthropic-ai/sdk'
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,12 +34,12 @@ export async function POST(request: NextRequest) {
       .eq('stokvel_id', stokvelId)
       .eq('status', 'active')
 
-    const adminMember   = members?.find(m => m.role === 'admin')
-    const treasurer     = members?.find(m => m.role === 'treasurer')
-    const secretary     = members?.find(m => m.role === 'secretary')
-    const memberCount   = members?.length || 0
+    const adminMember = members?.find(m => m.role === 'admin')
+    const treasurer   = members?.find(m => m.role === 'treasurer')
+    const secretary   = members?.find(m => m.role === 'secretary')
+    const memberCount = members?.length || 0
 
-    const prompt = `
+    const userContent = `
 Stokvel Name: ${stokvel.name}
 Type: ${stokvel.type}
 Province: ${stokvel.province || 'South Africa'}
@@ -53,17 +53,14 @@ Treasurer: ${treasurer?.name || 'To be appointed'}
 Secretary: ${secretary?.name || 'To be appointed'}
 `.trim()
 
-    const completion = await openai.chat.completions.create({
-      model:      'gpt-4o-mini',
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
       max_tokens: 2000,
-      messages: [
-        {
-          role: 'system',
-          content: `You are a South African legal document specialist. Write a formal, comprehensive stokvel constitution in plain English that complies with South African law (National Credit Act, Cooperative Banks Act awareness).
+      system: `You are a South African legal document specialist. Write a formal, comprehensive stokvel constitution in plain English that complies with South African law (National Credit Act, Cooperative Banks Act awareness).
 
 Structure the constitution with these numbered sections:
 1. NAME AND ESTABLISHMENT
-2. OBJECTIVES AND PURPOSE  
+2. OBJECTIVES AND PURPOSE
 3. MEMBERSHIP
    3.1 Eligibility
    3.2 Admission
@@ -96,14 +93,11 @@ Structure the constitution with these numbered sections:
 12. SIGNATURES
 
 Use formal legal language but remain accessible. Include specific amounts and procedures based on the stokvel details provided. Add reasonable default rules for anything not specified (e.g., late penalty of 10% after 7 days).`,
-        },
-        { role: 'user', content: prompt },
-      ],
+      messages: [{ role: 'user', content: userContent }],
     })
 
-    const constitution = completion.choices[0]?.message?.content?.trim() || ''
+    const constitution = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
 
-    // Save to stokvel record
     await supabase
       .from('stokvels')
       .update({ constitution, updated_at: new Date().toISOString() })

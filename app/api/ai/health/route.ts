@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import OpenAI from 'openai'
+import Anthropic from '@anthropic-ai/sdk'
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export async function POST(request: NextRequest) {
   try {
@@ -58,15 +58,15 @@ Confirmed contributions: ${contributions?.filter(c => c.status === 'confirmed').
 
 Respond in JSON: { "summary": "2-3 sentence summary", "complianceRate": number (0-100), "trend": "up"|"down"|"stable", "recommendation": "1 actionable recommendation" }`
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'user', content: prompt }],
-      response_format: { type: 'json_object' },
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
       max_tokens: 300,
-      temperature: 0.3,
+      system: 'You are a financial advisor for South African stokvels. Respond ONLY with valid JSON.',
+      messages: [{ role: 'user', content: prompt }],
     })
 
-    const report = JSON.parse(completion.choices[0].message.content ?? '{}')
+    const raw = response.content[0].type === 'text' ? response.content[0].text : '{}'
+    const report = JSON.parse(raw)
 
     // Cache the report
     await supabase.from('ai_cache').upsert({

@@ -6,7 +6,7 @@ const ContentSecurityPolicy = `
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
   img-src 'self' blob: data: https://*.supabase.co https://avatars.githubusercontent.com;
   font-src 'self' https://fonts.gstatic.com;
-  connect-src 'self' https://*.supabase.co https://va.vercel-scripts.com wss://*.supabase.co https://api.openai.com https://www.payfast.co.za https://sandbox.payfast.co.za;
+  connect-src 'self' https://*.supabase.co https://va.vercel-scripts.com wss://*.supabase.co https://api.anthropic.com https://api.notion.com https://waba.360dialog.io https://www.payfast.co.za https://sandbox.payfast.co.za;
   frame-src 'none';
   object-src 'none';
   base-uri 'self';

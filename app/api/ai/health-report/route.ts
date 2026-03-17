@@ -1,10 +1,10 @@
-// app/api/ai/health-report/route.ts  (REPLACE Batch 2 version)
+// app/api/ai/health-report/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { checkAiRateLimit, rateLimitResponse } from '@/lib/rate-limit'
-import OpenAI from 'openai'
+import Anthropic from '@anthropic-ai/sdk'
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,23 +37,21 @@ export async function POST(request: NextRequest) {
     const { data: thisMonthContribs } = await supabase
       .from('contributions').select('member_id, amount, status').eq('stokvel_id', stokvelId).eq('status', 'confirmed').gte('date', monthStart)
 
-    const paidCount    = new Set(thisMonthContribs?.map(c => c.member_id) || []).size
-    const compliance   = members?.length ? Math.round((paidCount / members.length) * 100) : 0
-    const potTotal     = (thisMonthContribs || []).reduce((s, c) => s + Number(c.amount), 0)
-    const outstanding  = (members || []).filter(m => !thisMonthContribs?.some(c => c.member_id === m.id))
+    const paidCount   = new Set(thisMonthContribs?.map(c => c.member_id) || []).size
+    const compliance  = members?.length ? Math.round((paidCount / members.length) * 100) : 0
+    const potTotal    = (thisMonthContribs || []).reduce((s, c) => s + Number(c.amount), 0)
+    const outstanding = (members || []).filter(m => !thisMonthContribs?.some(c => c.member_id === m.id))
 
-    const prompt = `Stokvel: "${stokvel?.name}" | Type: ${stokvel?.type} | Members: ${members?.length} | Monthly target: R${stokvel?.monthly_amount * (members?.length || 0)} | Paid this month: ${paidCount}/${members?.length} (${compliance}%) | Amount collected: R${potTotal} | Outstanding: ${outstanding.map(m => m.name).join(', ') || 'none'}`
+    const userContent = `Stokvel: "${stokvel?.name}" | Type: ${stokvel?.type} | Members: ${members?.length} | Monthly target: R${(stokvel?.monthly_amount ?? 0) * (members?.length || 0)} | Paid this month: ${paidCount}/${members?.length} (${compliance}%) | Amount collected: R${potTotal} | Outstanding: ${outstanding.map(m => m.name).join(', ') || 'none'}`
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
       max_tokens: 200,
-      messages: [
-        { role: 'system', content: 'You are a friendly stokvel advisor for South African community savings groups. Write a 3-4 sentence health report — warm, encouraging, in plain English. Mention compliance rate, any concerning patterns, and a specific actionable recommendation. Never be harsh about late members by name.' },
-        { role: 'user', content: prompt },
-      ],
+      system: 'You are a friendly stokvel advisor for South African community savings groups. Write a 3-4 sentence health report — warm, encouraging, in plain English. Mention compliance rate, any concerning patterns, and a specific actionable recommendation. Never be harsh about late members by name.',
+      messages: [{ role: 'user', content: userContent }],
     })
 
-    const report = completion.choices[0]?.message?.content?.trim() || ''
+    const report = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
     await supabase.from('ai_cache').upsert({ stokvel_id: stokvelId, cache_key: cacheKey, content: report }, { onConflict: 'stokvel_id,cache_key' })
 
     return NextResponse.json({ report, cached: false })

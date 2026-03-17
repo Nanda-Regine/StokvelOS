@@ -9,5 +9,12 @@
       "maxDuration": 30
     }
   },
-  "crons": []
+  "crons": [
+    { "path": "/api/cron/contribution-reminders", "schedule": "0 7 * * *" },
+    { "path": "/api/cron/loan-overdue-check",     "schedule": "0 6 * * MON" },
+    { "path": "/api/cron/monthly-reports",        "schedule": "0 5 1 * *" },
+    { "path": "/api/cron/compliance-update",      "schedule": "0 4 * * *" },
+    { "path": "/api/cron/monthly-reminders",      "schedule": "0 6 1 * *" },
+    { "path": "/api/cron/risk-analysis",          "schedule": "0 21 * * *" }
+  ]
 }

@@ -1,11 +1,11 @@
-// app/api/ai/reminders/route.ts  (REPLACE Batch 2 version)
+// app/api/ai/reminders/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { checkAiRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { buildWhatsAppUrl } from '@/lib/utils'
-import OpenAI from 'openai'
+import Anthropic from '@anthropic-ai/sdk'
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,31 +26,25 @@ export async function POST(request: NextRequest) {
       `- ${m.name} owes R${m.amount}`
     ).join('\n')
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      max_tokens: 600,
-      messages: [
-        {
-          role: 'system',
-          content: `You are writing WhatsApp reminder messages for a South African stokvel called "${stokvel?.name}". 
+    let reminders: Array<{ memberName: string; message: string }> = []
+    try {
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 600,
+        system: `You are writing WhatsApp reminder messages for a South African stokvel called "${stokvel?.name}".
 For each member listed, write ONE friendly reminder under 3 sentences. Use Ubuntu spirit — warm, communal, never shaming.
 Include their name and amount. Use simple language. South African English.
 Respond ONLY with valid JSON array: [{"memberId": null, "memberName": "Name", "message": "..."}]
 Use the exact member names provided. No preamble, no markdown, just the JSON array.`,
-        },
-        { role: 'user', content: prompt },
-      ],
-    })
+        messages: [{ role: 'user', content: prompt }],
+      })
 
-    const text = completion.choices[0]?.message?.content?.trim() || '[]'
-    let reminders: Array<{ memberName: string; message: string }> = []
-    try {
+      const text = response.content[0].type === 'text' ? response.content[0].text.trim() : '[]'
       reminders = JSON.parse(text.replace(/```json|```/g, '').trim())
     } catch {
-      // Fallback to templated messages
       reminders = members.map((m: { name: string; amount: number }) => ({
         memberName: m.name,
-        message: `Hi ${m.name.split(' ')[0]}! 👋 Just a friendly reminder that your ${stokvel?.name} contribution of R${m.amount} is due. Our stokvel is stronger when we all contribute together. Please pay at your earliest convenience. 🙏`,
+        message: `Hi ${m.name.split(' ')[0]}! Your ${stokvel?.name} contribution of R${m.amount} is due. Our stokvel is stronger when we all contribute together. Please pay at your earliest convenience.`,
       }))
     }
 
