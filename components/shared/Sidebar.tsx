@@ -22,10 +22,13 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/members',       label: 'Members',         icon: '◉', section: 'main'   },
   { href: '/contributions', label: 'Contributions',   icon: '◎', section: 'main'   },
   { href: '/payouts',       label: 'Payouts',         icon: '◆', section: 'main'   },
+  { href: '/loans',         label: 'Loans',           icon: '◇', section: 'main'   },
   // Manage
   { href: '/meetings',      label: 'Meetings',        icon: '◍', section: 'manage' },
   { href: '/announcements', label: 'Announcements',   icon: '◌', section: 'manage' },
   { href: '/reports',       label: 'Reports',         icon: '◐', section: 'manage' },
+  { href: '/disputes',      label: 'Disputes',        icon: '◫', section: 'manage' },
+  { href: '/risk',          label: 'Risk Monitor',    icon: '◬', section: 'manage' },
   // Admin
   { href: '/settings',      label: 'Settings',        icon: '◑', section: 'admin'  },
   { href: '/audit',         label: 'Audit Log',       icon: '◒', section: 'admin'  },

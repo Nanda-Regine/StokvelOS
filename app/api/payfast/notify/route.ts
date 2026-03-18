@@ -1,6 +1,8 @@
+// app/api/payfast/notify/route.ts
 import { type NextRequest, NextResponse } from 'next/server'
 import { validateITN } from '@/lib/payfast'
 import { createClient } from '@/lib/supabase/server'
+import { deployNotionWorkspace } from '@/lib/notion/workspace'
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,6 +42,24 @@ export async function POST(request: NextRequest) {
         pf_payment_id: pfPayId,
         status:        'complete',
       })
+
+      // Deploy Notion workspace for the stokvel if not yet deployed
+      // custom_str3 holds stokvel_id (set at checkout time)
+      const stokvelId = data.custom_str3
+      if (stokvelId) {
+        const { data: stokvel } = await supabase
+          .from('stokvels')
+          .select('id, name, notion_workspace_id')
+          .eq('id', stokvelId)
+          .single()
+
+        if (stokvel && !stokvel.notion_workspace_id) {
+          // Fire and forget — don't fail the PayFast callback if Notion is slow
+          void deployNotionWorkspace(stokvel.id, stokvel.name).catch(err =>
+            console.error('[PayFast] Notion workspace deploy failed:', err)
+          )
+        }
+      }
     } else if (status === 'CANCELLED' || status === 'FAILED') {
       await supabase.from('subscriptions').upsert(
         { user_id: userId, status: 'cancelled' },

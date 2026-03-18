@@ -5,10 +5,14 @@
 export type StokvelType = 'general' | 'grocery' | 'burial' | 'investment' | 'christmas' | 'other'
 export type PayoutFrequency = 'monthly' | 'quarterly' | 'annually'
 export type MemberStatus = 'active' | 'inactive' | 'suspended'
-export type ContributionStatus = 'confirmed' | 'pending' | 'rejected'
-export type PaymentMethod = 'cash' | 'eft' | 'card' | 'snapscan' | 'ozow'
+export type ContributionStatus = 'confirmed' | 'verified' | 'pending' | 'rejected'
+export type PaymentMethod = 'cash' | 'eft' | 'card' | 'snapscan' | 'ozow' | 'payfast' | 'momo' | 'vodapay'
 export type PaymentStatus = 'paid' | 'pending' | 'late' | 'outstanding'
-export type UserRole = 'admin' | 'treasurer' | 'secretary' | 'member'
+export type UserRole = 'admin' | 'chairperson' | 'treasurer' | 'secretary' | 'member'
+export type LoanStatus = 'pending' | 'active' | 'paid' | 'overdue' | 'defaulted'
+export type DisputeState = 'open' | 'investigating' | 'awaiting_complainant_proof' | 'awaiting_respondent_proof' | 'reviewing' | 'resolved' | 'escalated'
+export type FraudSeverity = 'low' | 'medium' | 'high' | 'critical'
+export type RiskLevel = 'low' | 'medium' | 'high' | 'critical'
 
 // ── Supabase DB Row Types ─────────────────────────────────────
 
@@ -31,10 +35,28 @@ export interface Stokvel {
   monthly_amount: number
   payout_frequency: PayoutFrequency
   payout_order: 'draw' | 'rotation' | 'seniority' | 'need'
+  contribution_due_day: number | null
   start_date: string | null
   admin_id: string
+  active: boolean
+  // WhatsApp
+  whatsapp_number: string | null
+  chairperson_phone: string | null
+  // Notion workspace IDs
+  notion_workspace_id: string | null
+  notion_members_db_id: string | null
+  notion_contributions_db_id: string | null
+  notion_loans_db_id: string | null
+  notion_payouts_db_id: string | null
+  // Constitution AI rules
+  extracted_rules: Record<string, unknown> | null
+  rules_extracted_at: string | null
+  // Financials
+  total_funds: number | null
+  // Timestamps
   created_at: string
   updated_at: string
+  // Computed
   member_count?: number
   pot_total?: number
 }
@@ -100,6 +122,98 @@ export interface Payout {
   created_at: string
   // Joined
   member?: StokvelMember
+}
+
+export interface Loan {
+  id: string
+  stokvel_id: string
+  member_id: string
+  amount: number
+  interest_rate: number
+  total_repayable: number
+  balance_outstanding: number
+  status: LoanStatus
+  start_date: string
+  end_date: string
+  notes: string | null
+  created_at: string
+  updated_at: string
+  // Joined
+  member?: StokvelMember
+  loan_repayments?: LoanRepayment[]
+}
+
+export interface LoanRepayment {
+  id: string
+  loan_id: string
+  stokvel_id: string
+  member_id: string
+  amount: number
+  date: string
+  method: string
+  receipt_number: string | null
+  created_at: string
+}
+
+export interface Dispute {
+  id: string
+  stokvel_id: string
+  complainant_id: string
+  subject: string
+  state: DisputeState
+  awaiting_phone: string | null
+  evidence: Record<string, unknown>
+  conversation: DisputeMessage[]
+  resolution: string | null
+  notes: string | null
+  resolved_at: string | null
+  escalated_at: string | null
+  created_at: string
+  updated_at: string
+  // Joined
+  complainant?: StokvelMember
+}
+
+export interface DisputeMessage {
+  role: 'complainant' | 'member' | 'agent' | 'admin'
+  content: string
+  ts: string
+}
+
+export interface FraudAlert {
+  id: string
+  stokvel_id: string
+  member_id: string | null
+  alert_type: string
+  severity: FraudSeverity
+  description: string
+  evidence: Record<string, unknown>
+  status: 'open' | 'reviewed' | 'dismissed'
+  reviewed_by: string | null
+  created_at: string
+}
+
+export interface RiskSnapshot {
+  id: string
+  stokvel_id: string
+  snapshot_date: string
+  risk_level: RiskLevel
+  compliance_rate: number
+  compliance_trend: 'improving' | 'stable' | 'declining'
+  projected_collection: number
+  expected_collection: number
+  loan_book_percent: number
+  members_at_risk: number
+  alerts: RiskAlert[]
+  ai_summary: string
+  notified_at: string | null
+  created_at: string
+}
+
+export interface RiskAlert {
+  type: string
+  message: string
+  severity: FraudSeverity
 }
 
 export interface Announcement {

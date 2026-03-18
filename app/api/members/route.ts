@@ -1,9 +1,10 @@
-// app/api/members/route.ts  (REPLACE Batch 3 version)
+// app/api/members/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { CreateMemberSchema, validationError } from '@/lib/validation'
 import { checkApiRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { writeAuditLog, AUDIT_ACTIONS } from '@/lib/audit'
+import { sendWhatsAppText } from '@/lib/whatsapp/360dialog'
 
 export async function GET(request: NextRequest) {
   try {
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
     // Verify ownership
     const { data: stokvel } = await supabase
       .from('stokvels')
-      .select('id, monthly_amount, name')
+      .select('id, monthly_amount, name, whatsapp_number')
       .eq('id', stokvelId)
       .eq('admin_id', user.id)
       .single()
@@ -67,14 +68,23 @@ export async function POST(request: NextRequest) {
         payout_position: payout_position ?? null,
         status,
         role,
-        joined_at: new Date().toISOString(),
+        joined_at:       new Date().toISOString(),
       })
       .select()
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    // Get actor name for audit
+    // Send WhatsApp welcome message (non-blocking)
+    if (phone?.trim() && stokvel.whatsapp_number) {
+      const firstName = name.trim().split(' ')[0]
+      const amount    = monthly_amount ?? stokvel.monthly_amount
+      const welcome   = `Welcome to ${stokvel.name}, ${firstName}! 🎉\n\nYour monthly contribution is R${amount}. Reply "BALANCE" to check your account, or "HELP" for all commands.\n\n— StokvelOS`
+      void sendWhatsAppText(phone.trim(), welcome).catch(err =>
+        console.error('[Members] welcome WhatsApp failed:', err)
+      )
+    }
+
     const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single()
     await writeAuditLog({
       stokvelId,

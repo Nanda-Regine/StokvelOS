@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
           .eq('stokvel_id', stokvel.id)
           .eq('member_id',  member.id)
           .in('status', ['verified', 'confirmed'])
-          .gte('payment_date', joinDate.toISOString().split('T')[0])
+          .gte('date', joinDate.toISOString().split('T')[0])
 
         const complianceRate = Math.min(100, Math.round(((paidCount || 0) / monthsActive) * 100))
 

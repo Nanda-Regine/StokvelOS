@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
         .select('member_id')
         .eq('stokvel_id', stokvel.id)
         .in('status', ['verified', 'confirmed'])
-        .gte('payment_date', monthStart)
+        .gte('date', monthStart)
 
       const paidIds = new Set((paid || []).map(p => p.member_id))
       const unpaid  = (members || []).filter(m => !paidIds.has(m.id))

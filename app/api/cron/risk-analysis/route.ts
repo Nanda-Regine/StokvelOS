@@ -180,9 +180,9 @@ async function gatherStokvelData(stokvelId: string, monthlyAmount: number) {
     { data: activeLoans },
     { data: stokvel },
   ] = await Promise.all([
-    serviceClient.from('stokvel_members').select('id, status, compliance_rate, date_joined').eq('stokvel_id', stokvelId).eq('status', 'active'),
-    serviceClient.from('contributions').select('member_id, amount').eq('stokvel_id', stokvelId).gte('payment_date', thisMonth).in('status', ['verified', 'confirmed']),
-    serviceClient.from('contributions').select('member_id, payment_date, amount').eq('stokvel_id', stokvelId).gte('payment_date', threeMonthsAgo).in('status', ['verified', 'confirmed']),
+    serviceClient.from('stokvel_members').select('id, status, compliance_rate, joined_at').eq('stokvel_id', stokvelId).eq('status', 'active'),
+    serviceClient.from('contributions').select('member_id, amount').eq('stokvel_id', stokvelId).gte('date', thisMonth).in('status', ['verified', 'confirmed']),
+    serviceClient.from('contributions').select('member_id, date, amount').eq('stokvel_id', stokvelId).gte('date', threeMonthsAgo).in('status', ['verified', 'confirmed']),
     serviceClient.from('loans').select('balance_outstanding').eq('stokvel_id', stokvelId).in('status', ['active', 'overdue']),
     serviceClient.from('stokvels').select('total_funds').eq('id', stokvelId).single(),
   ])
@@ -204,8 +204,8 @@ async function gatherStokvelData(stokvelId: string, monthlyAmount: number) {
   const lastMonthStart    = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0]
   const twoMonthsAgoStart = new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString().split('T')[0]
 
-  const lastMonthPaid    = new Set((prev3MonthsContribs || []).filter(c => c.payment_date >= lastMonthStart).map(c => c.member_id)).size
-  const twoMonthAgosPaid = new Set((prev3MonthsContribs || []).filter(c => c.payment_date >= twoMonthsAgoStart && c.payment_date < lastMonthStart).map(c => c.member_id)).size
+  const lastMonthPaid    = new Set((prev3MonthsContribs || []).filter(c => c.date >= lastMonthStart).map(c => c.member_id)).size
+  const twoMonthAgosPaid = new Set((prev3MonthsContribs || []).filter(c => c.date >= twoMonthsAgoStart && c.date < lastMonthStart).map(c => c.member_id)).size
 
   return {
     activeCount,

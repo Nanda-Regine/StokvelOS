@@ -1,9 +1,18 @@
-// app/api/contributions/route.ts  (REPLACE Batch 3 version)
+// app/api/contributions/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { CreateContributionSchema, validationError } from '@/lib/validation'
 import { checkApiRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { writeAuditLog, AUDIT_ACTIONS } from '@/lib/audit'
+import { runFraudDetection } from '@/lib/fraud/detector'
+import { syncContributionToNotion } from '@/lib/notion/workspace'
+
+function generateReceipt(): string {
+  const ts   = Date.now().toString(36).toUpperCase()
+  const rand = Math.random().toString(36).substring(2, 6).toUpperCase()
+  return `STK-${ts}-${rand}`
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -63,36 +72,82 @@ export async function POST(request: NextRequest) {
 
     const { stokvelId, member_id, amount, date, method, status, notes } = parsed.data
 
+    // Verify admin owns this stokvel
     const { data: stokvel } = await supabase
       .from('stokvels')
-      .select('id, name')
+      .select('id, name, notion_contributions_db_id')
       .eq('id', stokvelId)
       .eq('admin_id', user.id)
       .single()
 
     if (!stokvel) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+    const receiptNumber = generateReceipt()
+
     const { data, error } = await supabase
       .from('contributions')
       .insert({
-        stokvel_id:  stokvelId,
+        stokvel_id:     stokvelId,
         member_id,
         amount,
         date,
         method,
         status,
-        notes:       notes?.trim() || null,
-        recorded_by: user.id,
-        recorded_at: new Date().toISOString(),
+        notes:          notes?.trim() || null,
+        receipt_number: receiptNumber,
+        recorded_by:    user.id,
+        recorded_at:    new Date().toISOString(),
       })
-      .select('*, stokvel_members(id, name)')
+      .select('*, stokvel_members(id, name, notion_page_id)')
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single()
-    const memberName = (data as { stokvel_members?: { name: string } | null })?.stokvel_members?.name || member_id
+    const memberRow = (data as any)?.stokvel_members
+    const memberName = memberRow?.name || member_id
 
+    // ── Post-insert side-effects (non-blocking) ─────────────────
+    void Promise.allSettled([
+      // 1. Fraud detection
+      runFraudDetection({
+        id:         data.id,
+        stokvel_id: stokvelId,
+        member_id,
+        amount,
+        date,
+        method,
+        receipt_number: receiptNumber,
+      }),
+
+      // 2. Notion sync (only if this stokvel has a Notion workspace)
+      stokvel.notion_contributions_db_id
+        ? syncContributionToNotion({
+            stokvelId,
+            memberNotionPageId:     memberRow?.notion_page_id ?? undefined,
+            amount,
+            date,
+            method:                 method ?? 'cash',
+            receiptNumber,
+            status,
+            notionContributionsDbId: stokvel.notion_contributions_db_id,
+          })
+        : Promise.resolve(),
+
+      // 3. Update member's total_contributed
+      createServiceClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      )
+        .rpc('increment_member_total_contributed', {
+          p_member_id: member_id,
+          p_amount:    amount,
+        })
+        .then(() => {/* ignore — RPC may not exist yet */})
+        .catch(() => {/* non-fatal */}),
+    ])
+
+    // Audit log
+    const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single()
     await writeAuditLog({
       stokvelId,
       actorId:    user.id,
@@ -100,7 +155,7 @@ export async function POST(request: NextRequest) {
       action:     AUDIT_ACTIONS.CONTRIBUTION_CREATE,
       targetType: 'contribution',
       targetId:   data.id,
-      details:    { amount, date, method, status, memberName },
+      details:    { amount, date, method, status, memberName, receiptNumber },
     })
 
     return NextResponse.json({ contribution: data })

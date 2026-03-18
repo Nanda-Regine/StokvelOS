@@ -34,16 +34,31 @@ export function isDisputeMessage(text: string): boolean {
 // ── Check if phone has an active dispute ──────────────────────
 export async function getActiveDispute(phone: string, stokvelId: string) {
   const supabase = getSupabase()
-  const { data } = await supabase
+
+  // Resolve phone → member id (needed for complainant_id filter)
+  const { data: memberRow } = await supabase
+    .from('stokvel_members')
+    .select('id')
+    .eq('stokvel_id', stokvelId)
+    .eq('phone', phone)
+    .maybeSingle()
+
+  let query = supabase
     .from('disputes')
     .select('*')
     .eq('stokvel_id', stokvelId)
     .not('state', 'in', '("resolved","escalated")')
-    .or(`awaiting_phone.eq.${phone}`)
     .order('created_at', { ascending: false })
     .limit(1)
-    .single()
 
+  // Match on awaiting_phone OR complainant_id (member may send follow-up)
+  if (memberRow?.id) {
+    query = query.or(`awaiting_phone.eq.${phone},complainant_id.eq.${memberRow.id}`)
+  } else {
+    query = query.eq('awaiting_phone', phone)
+  }
+
+  const { data } = await query.maybeSingle()
   return data
 }
 
@@ -194,11 +209,11 @@ async function investigateClaim(
 
   const { data: contributions } = await supabase
     .from('contributions')
-    .select('amount, payment_date, status, receipt_number, payment_method')
+    .select('amount, date, status, receipt_number, method')
     .eq('member_id',  memberId)
     .eq('stokvel_id', stokvelId)
-    .gte('payment_date', sixMonthsAgo.toISOString().split('T')[0])
-    .order('payment_date', { ascending: false })
+    .gte('date', sixMonthsAgo.toISOString().split('T')[0])
+    .order('date', { ascending: false })
 
   const { data: loans } = await supabase
     .from('loans')
