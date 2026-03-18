@@ -12,8 +12,8 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/api/')) {
     const isAuth = pathname.startsWith('/api/auth')
     const result = isAuth
-      ? checkAuthRateLimit(ip)
-      : checkApiRateLimit(ip)
+      ? await checkAuthRateLimit(ip)
+      : await checkApiRateLimit(ip)
 
     if (!result.success) return rateLimitResponse(result)
   }

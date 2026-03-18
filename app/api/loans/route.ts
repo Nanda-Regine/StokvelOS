@@ -85,13 +85,16 @@ export async function POST(request: NextRequest) {
     if (!eligibility.eligible) {
       return NextResponse.json({
         error:  'Loan not eligible',
-        reason: eligibility.reason,
+        reason: eligibility.reasons[0] ?? 'Not eligible',
       }, { status: 422 })
     }
 
     // Calculate repayment schedule
-    const effectiveRate = interest_rate ?? rules.loanInterestRate
-    const schedule      = calculateLoanSchedule(amount, effectiveRate, start_date, end_date)
+    const effectiveRate = interest_rate ?? rules.interest_rate_percent
+    const months        = Math.max(1, Math.round(
+      (new Date(end_date).getTime() - new Date(start_date).getTime()) / (30 * 24 * 60 * 60 * 1000)
+    ))
+    const schedule      = calculateLoanSchedule(amount, { ...rules, interest_rate_percent: effectiveRate }, months)
 
     const { data, error } = await supabase
       .from('loans')
@@ -119,7 +122,7 @@ export async function POST(request: NextRequest) {
       stokvelId,
       actorId:    user.id,
       actorName:  profile?.full_name || user.email || 'Admin',
-      action:     AUDIT_ACTIONS.LOAN_CREATE ?? 'loan.create',
+      action:     'loan.create',
       targetType: 'loan',
       targetId:   data.id,
       details:    { amount, effectiveRate, totalRepayable: schedule.totalRepayable, memberName },

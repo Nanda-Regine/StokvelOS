@@ -142,8 +142,7 @@ export async function POST(request: NextRequest) {
           p_member_id: member_id,
           p_amount:    amount,
         })
-        .then(() => {/* ignore — RPC may not exist yet */})
-        .catch(() => {/* non-fatal */}),
+        .then(() => {/* ignore — RPC may not exist yet */}, () => {/* non-fatal */}),
     ])
 
     // Audit log
