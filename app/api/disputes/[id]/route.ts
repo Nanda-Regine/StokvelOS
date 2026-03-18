@@ -58,7 +58,7 @@ export async function PATCH(
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const rl = checkApiRateLimit(user.id)
+    const rl = await checkApiRateLimit(user.id)
     if (!rl.success) return rateLimitResponse(rl)
 
     // Fetch dispute + verify ownership

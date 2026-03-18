@@ -11,7 +11,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const rl = checkApiRateLimit(user.id)
+    const rl = await checkApiRateLimit(user.id)
     if (!rl.success) return rateLimitResponse(rl)
 
     const body   = await request.json()
@@ -53,7 +53,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const rl = checkApiRateLimit(user.id)
+    const rl = await checkApiRateLimit(user.id)
     if (!rl.success) return rateLimitResponse(rl)
 
     const { data: contrib } = await supabase

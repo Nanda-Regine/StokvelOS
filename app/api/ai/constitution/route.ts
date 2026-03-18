@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const rl = checkAiRateLimit(user.id, 'constitution')
+    const rl = await checkAiRateLimit(user.id, 'constitution')
     if (!rl.success) return rateLimitResponse(rl)
 
     const { stokvelId } = await request.json()

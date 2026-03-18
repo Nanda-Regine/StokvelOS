@@ -1,112 +1,125 @@
 // lib/rate-limit.ts
-// In-memory sliding window rate limiter
-// For production scale, swap backing store with Upstash Redis
+// Sliding-window rate limiter.
+// Uses Upstash Redis in production (when UPSTASH_REDIS_REST_URL is set),
+// falls back to an in-memory Map for local development / serverless warm instances.
 
-interface WindowEntry {
-  count:     number
-  resetAt:   number
-}
+import { Redis } from '@upstash/redis'
+import { Ratelimit } from '@upstash/ratelimit'
 
-const store = new Map<string, WindowEntry>()
+// ── Types ─────────────────────────────────────────────────────
 
-// Clean up expired entries every 5 minutes
-if (typeof setInterval !== 'undefined') {
-  setInterval(() => {
-    const now = Date.now()
-    for (const [key, entry] of Array.from(store.entries())) {
-      if (entry.resetAt < now) store.delete(key)
-    }
-  }, 5 * 60 * 1000)
-}
-
-interface RateLimitOptions {
-  /** Max requests per window */
-  limit:        number
-  /** Window size in seconds */
-  windowSeconds: number
-}
-
-interface RateLimitResult {
+export interface RateLimitResult {
   success:   boolean
   limit:     number
   remaining: number
   resetAt:   number
 }
 
-export function rateLimit(
-  key: string,
-  options: RateLimitOptions
-): RateLimitResult {
+// ── Upstash setup (lazy singleton) ───────────────────────────
+
+let _redis: Redis | null = null
+
+function getRedis(): Redis | null {
+  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) return null
+  if (!_redis) _redis = Redis.fromEnv()
+  return _redis
+}
+
+// Cache Ratelimit instances keyed by "limit:window" to avoid re-creating on every request
+const _limiters = new Map<string, Ratelimit>()
+
+function getLimiter(limit: number, windowSeconds: number): Ratelimit | null {
+  const r = getRedis()
+  if (!r) return null
+  const k = `${limit}:${windowSeconds}`
+  if (!_limiters.has(k)) {
+    _limiters.set(k, new Ratelimit({
+      redis:   r,
+      limiter: Ratelimit.slidingWindow(limit, `${windowSeconds} s`),
+      prefix:  'rl:stokvelos',
+    }))
+  }
+  return _limiters.get(k)!
+}
+
+// ── In-memory fallback ────────────────────────────────────────
+
+interface WindowEntry { count: number; resetAt: number }
+const _store = new Map<string, WindowEntry>()
+
+if (typeof setInterval !== 'undefined') {
+  setInterval(() => {
+    const now = Date.now()
+    for (const [k, e] of Array.from(_store.entries())) {
+      if (e.resetAt < now) _store.delete(k)
+    }
+  }, 5 * 60 * 1000)
+}
+
+function memLimit(key: string, limit: number, windowSeconds: number): RateLimitResult {
   const now      = Date.now()
-  const windowMs = options.windowSeconds * 1000
-  const entry    = store.get(key)
+  const windowMs = windowSeconds * 1000
+  const entry    = _store.get(key)
 
-  // New or expired window
   if (!entry || entry.resetAt < now) {
-    store.set(key, { count: 1, resetAt: now + windowMs })
-    return {
-      success:   true,
-      limit:     options.limit,
-      remaining: options.limit - 1,
-      resetAt:   now + windowMs,
-    }
+    _store.set(key, { count: 1, resetAt: now + windowMs })
+    return { success: true, limit, remaining: limit - 1, resetAt: now + windowMs }
   }
-
-  // Within window
-  if (entry.count >= options.limit) {
-    return {
-      success:   false,
-      limit:     options.limit,
-      remaining: 0,
-      resetAt:   entry.resetAt,
-    }
+  if (entry.count >= limit) {
+    return { success: false, limit, remaining: 0, resetAt: entry.resetAt }
   }
-
   entry.count++
-  return {
-    success:   true,
-    limit:     options.limit,
-    remaining: options.limit - entry.count,
-    resetAt:   entry.resetAt,
+  return { success: true, limit, remaining: limit - entry.count, resetAt: entry.resetAt }
+}
+
+// ── Core async rateLimit ──────────────────────────────────────
+
+async function rateLimit(key: string, limit: number, windowSeconds: number): Promise<RateLimitResult> {
+  const limiter = getLimiter(limit, windowSeconds)
+  if (limiter) {
+    const { success, limit: l, remaining, reset } = await limiter.limit(key)
+    return { success, limit: l, remaining, resetAt: reset }
   }
+  return memLimit(key, limit, windowSeconds)
 }
 
 // ── Pre-configured limiters ───────────────────────────────────
 
 /** AI endpoints: 10 requests per user per hour */
-export function checkAiRateLimit(userId: string, endpoint: string) {
-  return rateLimit(`ai:${endpoint}:${userId}`, { limit: 10, windowSeconds: 3600 })
+export async function checkAiRateLimit(userId: string, endpoint: string): Promise<RateLimitResult> {
+  return rateLimit(`ai:${endpoint}:${userId}`, 10, 3600)
 }
 
 /** Auth endpoints: 5 attempts per IP per 15 minutes */
-export function checkAuthRateLimit(ip: string) {
-  return rateLimit(`auth:${ip}`, { limit: 5, windowSeconds: 900 })
+export async function checkAuthRateLimit(ip: string): Promise<RateLimitResult> {
+  return rateLimit(`auth:${ip}`, 5, 900)
 }
 
 /** General API: 100 requests per user per minute */
-export function checkApiRateLimit(userId: string) {
-  return rateLimit(`api:${userId}`, { limit: 100, windowSeconds: 60 })
+export async function checkApiRateLimit(userId: string): Promise<RateLimitResult> {
+  return rateLimit(`api:${userId}`, 100, 60)
 }
 
-/** PDF/export: 10 per user per hour (expensive operations) */
-export function checkExportRateLimit(userId: string) {
-  return rateLimit(`export:${userId}`, { limit: 10, windowSeconds: 3600 })
+/** PDF/export: 10 per user per hour */
+export async function checkExportRateLimit(userId: string): Promise<RateLimitResult> {
+  return rateLimit(`export:${userId}`, 10, 3600)
 }
 
 /** Bulk operations: 5 per user per minute */
-export function checkBulkRateLimit(userId: string) {
-  return rateLimit(`bulk:${userId}`, { limit: 5, windowSeconds: 60 })
+export async function checkBulkRateLimit(userId: string): Promise<RateLimitResult> {
+  return rateLimit(`bulk:${userId}`, 5, 60)
 }
 
 // ── Response helper ───────────────────────────────────────────
+
 export function rateLimitResponse(result: RateLimitResult) {
   return new Response(
     JSON.stringify({ error: 'Too many requests. Please slow down.' }),
     {
       status: 429,
       headers: {
-        'Content-Type':    'application/json',
-        'Retry-After':     String(Math.ceil((result.resetAt - Date.now()) / 1000)),
+        'Content-Type':          'application/json',
+        'Retry-After':           String(Math.ceil((result.resetAt - Date.now()) / 1000)),
         'X-RateLimit-Limit':     String(result.limit),
         'X-RateLimit-Remaining': '0',
         'X-RateLimit-Reset':     String(result.resetAt),

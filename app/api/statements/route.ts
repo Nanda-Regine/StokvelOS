@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const rl = checkExportRateLimit(user.id)
+    const rl = await checkExportRateLimit(user.id)
     if (!rl.success) return rateLimitResponse(rl)
 
     const { searchParams } = new URL(request.url)
